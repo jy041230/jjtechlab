@@ -180,8 +180,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const soilPhotoFileRef = useRef(null)
   const journalPhotoFileRef = useRef(null)
   const caliperCameraFileRef = useRef(null)
-  const caliperPhotoFileRef = useRef(null)
-  const submitCsvFileRef = useRef(null)
+  const caliperPhotoFileRef = useRef(null)
   const phoneBackupFileRef = useRef(null)
   const researchDbTextRef = useRef(null)
 
@@ -773,40 +772,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     }
   }
 
-  async function handleSubmitResearchDbToPc() {
-    try {
-      const data = await makeResearchDatabaseCsv({ includeImages: false })
-      if (!data.rows.length) {
-        alert('아직 제출할 측정자료가 없습니다.')
-        return
-      }
-
-      const ok = window.confirm(
-        `측정자료 ${data.rows.length}건을 선생님 PC로 제출할까요?\n\n` +
-        '제출 후에도 이 휴대폰 이력은 남겨둡니다.'
-      )
-      if (!ok) return
-
-      const res = await fetch('/api/research-db-export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv: data.csv }),
-      })
-      const result = await res.json()
-      if (!res.ok || !result.ok) throw new Error(result.error || 'PC 저장 실패')
-
-      setResearchDb(null)
-      setPhase(PHASE.IDLE)
-      alert(`제출 완료!\n${data.rows.length}건이 선생님 PC에 저장되었습니다.\n\n휴대폰 이력은 그대로 남아 있습니다.`)
-    } catch (err) {
-      console.error('[자료제출 실패]', err)
-      alert(
-        '자료제출에 실패했습니다.\n\n' +
-        '노트북의 서버창과 터널창이 켜져 있는지 확인한 뒤 다시 눌러 주세요.'
-      )
-    }
-  }
-
   async function handlePhoneBackupDownload() {
     try {
       const count = await downloadPhoneBackupJson(getResearchMeta())
@@ -921,38 +886,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     alert('휴대폰 안의 측정자료를 완전히 삭제했습니다.')
   }
 
-  function handleSubmitBackupFileClick() {
-    submitCsvFileRef.current.value = ''
-    submitCsvFileRef.current.click()
-  }
-
-  async function handleSubmitBackupFileChange(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    try {
-      const csv = await file.text()
-      if (!csv.trim()) {
-        alert('비어 있는 파일입니다.')
-        return
-      }
-      const ok = window.confirm(
-        `선택한 백업파일을 선생님 PC로 제출할까요?\n\n${file.name}`
-      )
-      if (!ok) return
-      const res = await fetch('/api/research-db-export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv }),
-      })
-      const result = await res.json()
-      if (!res.ok || !result.ok) throw new Error(result.error || 'PC 저장 실패')
-      alert('백업파일 제출 완료!')
-    } catch (err) {
-      console.error('[백업파일 제출 실패]', err)
-      alert('백업파일 제출에 실패했습니다. 서버창과 터널창을 확인한 뒤 다시 시도해 주세요.')
-    }
-  }
-
   async function handleResearchDbDownload() {
     const count = await downloadResearchDatabaseCsv()
     if (!count) alert('아직 내보낼 연구 데이터가 없습니다.')
@@ -1009,23 +942,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       if (err?.name !== 'AbortError') {
         alert('공유가 완료되지 않았습니다. Chrome에서 다시 시도하거나 아래 CSV 박스를 길게 눌러 복사해 주세요.')
       }
-    }
-  }
-
-  async function handleResearchDbSaveToPc() {
-    if (!researchDb?.csv) return
-    try {
-      const res = await fetch('/api/research-db-export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv: researchDb.csv }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.ok) throw new Error(data.error || '저장 실패')
-      alert(`PC에 저장했습니다.\n${data.filePath}\n\n앱 안 자료는 삭제하지 않고 그대로 남겨둡니다.`)
-    } catch (err) {
-      console.error('[PC 저장 실패]', err)
-      alert('PC 저장에 실패했습니다. 앱 서버를 다시 켠 뒤 시도해 주세요.')
     }
   }
 
@@ -1440,13 +1356,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
               {researchDb.rows.length}개 사건 단위 연구DB
             </p>
             <p className={styles.researchDbGuide}>
-              다운로드가 안 되면 CSV 복사를 눌러 메모장, 카카오톡, 메일에 붙여넣어 보관하세요.
-            </p>
-            <div className={styles.researchDbActions}>
-              <button className={styles.excelConfirmBtn} onClick={handleResearchDbSaveToPc}>
-                PC에 저장
-              </button>
-            </div>
+              PC 자동 저장은 계측 저장 때마다 1건씩 처리합니다. 이 화면에서는 CSV를 내려받거나 복사해서 확인용으로만 보관하세요.
+            </p>
             <div className={styles.researchDbActions}>
               <button className={styles.excelConfirmBtn} onClick={handleResearchDbDownload}>
                 CSV 다운로드
@@ -1588,14 +1499,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         onChange={handleCaliperPhotoFileChange}
       />
 
-      {/* ── 버튼 줄: 카메라 모드·토양 입력·토양 서브화면에서 숨김 ── */}
-      <input
-        type="file"
-        accept=".csv,text/csv"
-        ref={submitCsvFileRef}
-        style={{ display: 'none' }}
-        onChange={handleSubmitBackupFileChange}
-      />
+      {/* ── 버튼 줄: 카메라 모드·토양 입력·토양 서브화면에서 숨김 ── */}
       <input
         type="file"
         accept="application/json,.json,text/json,text/plain"
@@ -1679,23 +1583,15 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             <button className={styles.typeBtn} onClick={onGoHistory}>
               <span className={styles.typeIcon}>📋</span>
               <span className={styles.typeLabel}>이력</span>
-            </button>
-            <button className={styles.typeBtn} onClick={handleSubmitResearchDbToPc}>
-              <span className={styles.typeIcon}>📤</span>
-              <span className={styles.typeLabel}>자료제출</span>
-            </button>
+            </button>
             <button className={styles.typeBtn} onClick={handlePhoneBackupDownload}>
               <span className={styles.typeIcon}>💾</span>
               <span className={styles.typeLabel}>스마트폰 백업 저장</span>
             </button>
-                        <button className={styles.typeBtn} onClick={handlePhoneBackupImportClick}>
+            <button className={styles.typeBtn} onClick={handlePhoneBackupImportClick}>
               <span className={styles.typeIcon}>📥</span>
               <span className={styles.typeLabel}>백업 가져오기</span>
-            </button>
-<button className={styles.typeBtn} onClick={handleSubmitBackupFileClick}>
-              <span className={styles.typeIcon}>📁</span>
-              <span className={styles.typeLabel}>파일제출</span>
-            </button>
+            </button>
             <button className={styles.typeBtn} onClick={handleCompleteClearPhoneData}>
               <span className={styles.typeIcon}>🗑️</span>
               <span className={styles.typeLabel}>완전삭제</span>
