@@ -182,6 +182,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const caliperCameraFileRef = useRef(null)
   const caliperPhotoFileRef = useRef(null)
   const submitCsvFileRef = useRef(null)
+  const phoneBackupFileRef = useRef(null)
   const researchDbTextRef = useRef(null)
 
   const [markerInfo, setMarkerInfo] = useState(null) // 디버그: 검출 메타데이터
@@ -820,26 +821,80 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     }
   }
   async function handlePhoneBackupImportClick() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.json,application/json'
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) return
-      const ok = window.confirm(
-        '선택한 백업 파일을 이 스마트폰 앱으로 가져올까요?\n\n' +
-        '같은 자료는 덮어쓰고, 새 자료는 추가됩니다.'
-      )
-      if (!ok) return
+    // alert 뒤에 input.click()을 호출하면 스마트폰에서 카메라/이미지 선택기가 뜰 수 있다.
+    // 지원 브라우저에서는 다운로드 폴더 파일 선택기를 먼저 시도한다.
+    if (typeof window.showOpenFilePicker === 'function') {
       try {
-        const result = await importPhoneBackupJson(file)
-        alert(`백업 가져오기 완료!\n측정묶음 ${result.eventCount}건을 가져왔습니다.`)
+        const [fileHandle] = await window.showOpenFilePicker({
+          multiple: false,
+          startIn: 'downloads',
+          excludeAcceptAllOption: false,
+          types: [
+            {
+              description: 'plum-measure 백업 JSON',
+              accept: {
+                'application/json': ['.json'],
+                'text/plain': ['.json'],
+              },
+            },
+          ],
+        })
+        const file = await fileHandle.getFile()
+        await handlePhoneBackupImportFile(file)
+        return
       } catch (err) {
-        console.error('[폰백업 가져오기 실패]', err)
-        alert('백업 파일을 가져오지 못했습니다. JSON 백업 파일인지 확인해 주세요.')
+        if (err?.name === 'AbortError') return
+        console.warn('[다운로드 파일 선택기 실패 — input fallback 사용]', err)
       }
     }
-    input.click()
+
+    if (!phoneBackupFileRef.current) return
+    phoneBackupFileRef.current.value = ''
+    phoneBackupFileRef.current.click()
+  }
+
+  async function handlePhoneBackupImportFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      await handlePhoneBackupImportFile(file)
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  async function handlePhoneBackupImportFile(file) {
+    const isJsonFile =
+      file.type === 'application/json' ||
+      file.name.toLowerCase().endsWith('.json')
+
+    if (!isJsonFile) {
+      alert(
+        '백업 가져오기는 JSON 백업 파일만 사용할 수 있습니다.\n\n' +
+        '파일 관리자 또는 내 파일 앱에서 다운로드(Download) 폴더를 열고\n' +
+        'plum-measure 이름이 들어간 .json 파일을 선택하세요.'
+      )
+      return
+    }
+
+    const ok = window.confirm(
+      '다운로드 폴더에서 선택한 백업 파일을 이 스마트폰 앱으로 가져올까요?\n\n' +
+      `${file.name}\n\n` +
+      '같은 자료는 덮어쓰고, 새 자료는 추가됩니다.'
+    )
+    if (!ok) return
+
+    try {
+      const result = await importPhoneBackupJson(file)
+      alert(`백업 가져오기 완료!\n측정묶음 ${result.eventCount}건을 가져왔습니다.`)
+    } catch (err) {
+      console.error('[폰백업 가져오기 실패]', err)
+      alert(
+        '백업 파일을 가져오지 못했습니다.\n\n' +
+        '스마트폰 백업 저장으로 만든 plum-measure JSON 파일인지 확인해 주세요.'
+      )
+    }
   }
 
   async function handleCompleteClearPhoneData() {
@@ -1540,6 +1595,13 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         ref={submitCsvFileRef}
         style={{ display: 'none' }}
         onChange={handleSubmitBackupFileChange}
+      />
+      <input
+        type="file"
+        accept="application/json,.json,text/json,text/plain"
+        ref={phoneBackupFileRef}
+        style={{ display: 'none' }}
+        onChange={handlePhoneBackupImportFileChange}
       />
       {!isCameraMode && !isSoilInputScreen && !isSoilSubScreen && !isCaliperScreen && !isResearchDbScreen && !isJournalSubScreen && (
         <>
