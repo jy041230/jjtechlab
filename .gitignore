@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+.venv/
+.npm-cache/
+research_exports/
+practice_exports/
+
+.env
+.env.*
+*.log
+*.zip
+
+jjtechlab-handoff*.patch
+jjtechlab-handoff*.tar.gz

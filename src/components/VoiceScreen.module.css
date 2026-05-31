@@ -1,0 +1,312 @@
+/* ── 전체 화면 반투명 오버레이 ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  z-index: 200;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ── 바텀 시트 ── */
+.sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 22px 22px 0 0;
+  padding: 20px 20px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 82vh;
+  overflow-y: auto;
+}
+
+/* ── 헤더 ── */
+.sheetHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fieldLabel {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.xBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  color: #555;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 안내 문구 ── */
+.prompt {
+  font-size: 18px;
+  color: #555;
+  line-height: 1.65;
+  white-space: pre-line;
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+/* ── 마이크 영역 ── */
+.micArea {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 12px 0 4px;
+}
+
+/* 리플 래퍼 */
+.rippleWrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ripple {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(231, 76, 60, 0.18);
+  animation: rippleOut 2s ease-out infinite;
+}
+
+@keyframes rippleOut {
+  0%   { transform: scale(0.7); opacity: 0.7; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* 활성 마이크 버튼 */
+.micActive {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  animation: micPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes micPulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.09); }
+}
+
+/* 비활성 마이크 */
+.micIdle {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #888;
+  font-size: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.micError {
+  background: #fce8e8;
+  color: #c0392b;
+}
+
+/* ── 상태 텍스트 ── */
+.statusText {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #e74c3c;
+}
+
+.interimText {
+  text-align: center;
+  font-size: 18px;
+  color: #888;
+  font-style: italic;
+  min-height: 28px;
+}
+
+/* ── 오류 메시지 ── */
+.errorText {
+  font-size: 17px;
+  color: #c0392b;
+  background: #fef0f0;
+  border: 1px solid #f5c6cb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  line-height: 1.6;
+  white-space: pre-line;
+  text-align: center;
+}
+
+/* ── 결과 박스 ── */
+.resultBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.transcriptLine {
+  font-size: 18px;
+  color: #666;
+  font-style: italic;
+  text-align: center;
+}
+
+/* 숫자 크게 표시 */
+.bigNumber {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.bigVal {
+  font-size: 64px;
+  font-weight: 900;
+  color: #2d6a4f;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.bigUnit {
+  font-size: 30px;
+  font-weight: 600;
+  color: #888;
+}
+
+.parseWarn {
+  font-size: 17px;
+  color: #c0392b;
+  text-align: center;
+  background: #fef0f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+/* 작업일지 카드 */
+.journalCard {
+  width: 100%;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a3a5c;
+  background: #e8f4fd;
+  border: 1.5px solid #74b9ff;
+  border-radius: 12px;
+  padding: 16px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.journalEditWrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1a3a5c;
+}
+
+.journalEdit {
+  width: 100%;
+  min-height: 128px;
+  padding: 14px 16px;
+  border: 2px solid #74b9ff;
+  border-radius: 12px;
+  background: #e8f4fd;
+  color: #1a3a5c;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.journalEdit:focus {
+  outline: none;
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.16);
+}
+
+/* ── 액션 버튼 ── */
+.actionRow {
+  display: flex;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.actionBtn {
+  flex: 1;
+  min-height: 58px;
+  border-radius: 12px;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stopBtn {
+  flex: 1;
+  min-height: 58px;
+  border-radius: 12px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.retryBtn {
+  flex: 1;
+  min-height: 58px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.saveBtn {
+  flex: 1.4;
+  min-height: 58px;
+  border-radius: 12px;
+  background: #2d6a4f;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.saveBtn:disabled {
+  background: #b0b0b0;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  flex: 1;
+  min-height: 58px;
+  border-radius: 12px;
+  background: #e9ecef;
+  color: #555;
+  font-size: 18px;
+  font-weight: 600;
+}

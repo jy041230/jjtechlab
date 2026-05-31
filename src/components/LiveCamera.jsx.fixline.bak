@@ -1,0 +1,185 @@
+﻿/**
+ * LiveCamera ???쇱씠釉?移대찓???꾨━酉?+ "珥ъ쁺" ?뷀꽣
+ *
+ * ?쇱씠釉??곸긽? object-fit:cover濡??곸뿭??苑?梨꾩슫??
+ * ?뷀꽣 踰꾪듉????븯硫??꾩옱 ?꾨젅?꾩쓣 Canvas濡?罹≪쿂??onCapture()濡??꾨떖.
+ */
+import { useEffect, useRef, useState } from 'react'
+import styles from './LiveCamera.module.css'
+
+export default function LiveCamera({
+  stream,
+  onCapture,
+  onFileCapture,
+  onClose,
+  onRetry,
+  errorMsg = '',
+  hint = '留덉빱媛 蹂댁씠?꾨줉 ?볤퀬 珥ъ쁺?섏꽭??,
+}) {
+  const videoRef = useRef(null)
+  const fileRef = useRef(null)
+  const [videoState, setVideoState] = useState({
+    ready: false,
+    width: 0,
+    height: 0,
+    error: '',
+  })
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (stream) {
+      video.srcObject = stream
+      setVideoState({ ready: false, width: 0, height: 0, error: '' })
+      video.play()
+        .then(() => {
+          setVideoState({
+            ready: video.videoWidth > 0 && video.videoHeight > 0,
+            width: video.videoWidth,
+            height: video.videoHeight,
+            error: '',
+          })
+        })
+        .catch(err => {
+          setVideoState(prev => ({
+            ...prev,
+            error: `?곸긽 ?ъ깮 ?ㅽ뙣: ${err.name || 'Error'} ${err.message || ''}`.trim(),
+          }))
+        })
+    } else {
+      video.srcObject = null
+      setVideoState({ ready: false, width: 0, height: 0, error: '' })
+    }
+  }, [stream])
+
+  async function ensurePlay() {
+    const video = videoRef.current
+    if (!video) return
+    try {
+      await video.play()
+      setVideoState({
+        ready: video.videoWidth > 0 && video.videoHeight > 0,
+        width: video.videoWidth,
+        height: video.videoHeight,
+        error: '',
+      })
+    } catch (err) {
+      setVideoState(prev => ({
+        ...prev,
+        error: `?곸긽 ?ъ깮 ?ㅽ뙣: ${err.name || 'Error'} ${err.message || ''}`.trim(),
+      }))
+    }
+  }
+
+  function updateVideoReady() {
+    const video = videoRef.current
+    if (!video) return
+    setVideoState({
+      ready: video.videoWidth > 0 && video.videoHeight > 0,
+      width: video.videoWidth,
+      height: video.videoHeight,
+      error: '',
+    })
+  }
+
+  function handleShutter() {
+    const video = videoRef.current
+    if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+      setVideoState(prev => ({
+        ...prev,
+        error: '?꾩쭅 移대찓???곸긽??以鍮꾨릺吏 ?딆븯?듬땲?? ?붾㈃????踰??곗튂?????ㅼ떆 珥ъ쁺?섏꽭??',
+      }))
+      return
+    }
+
+    const cap = document.createElement('canvas')
+    cap.width  = video.videoWidth
+    cap.height = video.videoHeight
+    cap.getContext('2d').drawImage(video, 0, 0)
+
+    // JPEG 蹂??(?쒖떆??dataURL)
+    const dataUrl = cap.toDataURL('image/jpeg', 0.92)
+    onCapture({ canvas: cap, dataUrl, videoW: cap.width, videoH: cap.height })
+  }
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file || !onFileCapture) return
+    onFileCapture(file)
+    e.target.value = ''
+  }
+
+  return (
+    <div className={styles.container}>
+      <input
+        ref={fileRef}
+        className={styles.fileInput}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+      />
+
+      <video
+        ref={videoRef}
+        className={styles.video}
+        playsInline
+        webkit-playsinline="true"
+        muted
+        autoPlay
+        onClick={ensurePlay}
+        onLoadedMetadata={updateVideoReady}
+        onCanPlay={updateVideoReady}
+      />
+
+      {!stream && (
+        <div className={styles.playOverlay}>
+          <span>移대찓?쇨? ?쒖옉?섏? ?딆븯?듬땲??/span>
+          <small>
+            二쇱냼媛 https?몄? ?뺤씤?섍퀬, 釉뚮씪?곗???移대찓??沅뚰븳???덉슜??二쇱꽭??
+          </small>
+          {errorMsg && <em>{errorMsg}</em>}
+          {onRetry && (
+            <button className={styles.retryBtn} onClick={onRetry}>
+              移대찓???ㅼ떆 耳쒓린
+            </button>
+          )}
+          {onFileCapture && (
+            <button className={styles.fileBtn} onClick={() => fileRef.current?.click()}>
+              ?ъ쭊?쇰줈 珥ъ쁺?섍린
+            </button>
+          )}
+        </div>
+      )}
+
+      {stream && !videoState.ready && (
+        <button className={styles.playOverlay} onClick={ensurePlay}>
+          <span>移대찓???곌껐 以?/span>
+          <small>寃? ?붾㈃?대㈃ ?ш린瑜???踰??꾨Ⅴ?몄슂</small>
+          {videoState.error && <em>{videoState.error}</em>}
+        </button>
+      )}
+
+      {stream && (<div className={styles.markerGuide} aria-hidden="true"><div className={styles.markerGuideBox}><span className={styles.markerGuideTitle}>ArUco Marker</span><span className={styles.markerGuideText}>Place marker here</span></div></div>)} {hint && <div className={styles.hint}>{hint}</div>}
+
+      <div className={styles.debugBadge}>
+        stream {stream ? 'ON' : 'OFF'} 쨌 video {videoState.width}횞{videoState.height}
+      </div>
+
+      {/* ?뷀꽣 踰꾪듉 ??以묒븰 ?섎떒 */}
+      <button
+        className={styles.shutter}
+        onClick={stream ? handleShutter : () => fileRef.current?.click()}
+        aria-label="?ъ쭊 珥ъ쁺"
+      >
+        <span className={styles.shutterInner} />
+      </button>
+
+      {/* ?リ린 */}
+      <button className={styles.closeBtn} onClick={onClose} aria-label="移대찓???リ린">
+        ??
+      </button>
+    </div>
+  )
+}
+
