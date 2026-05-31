@@ -21,8 +21,7 @@ import {
   saveJournalEntry,
   saveExcelSoilRows,
   downloadResearchDatabaseCsv,
-  downloadPhoneBackupJson,
-  importPhoneBackupJson,
+  downloadPhoneBackupCsv,
   makeResearchDatabaseCsv,
   clearResearchDatabase,
 } from '../utils/db'
@@ -808,38 +807,16 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
 
   async function handlePhoneBackupDownload() {
     try {
-      const count = await downloadPhoneBackupJson(getResearchMeta())
+      const count = await downloadPhoneBackupCsv()
       if (!count) {
         alert('아직 폰에 백업할 측정자료가 없습니다.')
         return
       }
-      alert(`폰에 백업파일을 저장했습니다.\n${count}건\n\n다운로드 폴더에서 plum-measure 백업 파일을 확인하세요.`)
+      alert(`폰에 백업파일을 저장했습니다.\n${count}건\n\n다운로드 폴더에서 plum_phone_backup 파일을 확인하세요.`)
     } catch (err) {
       console.error('[폰백업 실패]', err)
       alert('폰백업 파일을 만들지 못했습니다. 다시 시도해 주세요.')
     }
-  }
-  async function handlePhoneBackupImportClick() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.json,application/json'
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) return
-      const ok = window.confirm(
-        '선택한 백업 파일을 이 스마트폰 앱으로 가져올까요?\n\n' +
-        '같은 자료는 덮어쓰고, 새 자료는 추가됩니다.'
-      )
-      if (!ok) return
-      try {
-        const result = await importPhoneBackupJson(file)
-        alert(`백업 가져오기 완료!\n측정묶음 ${result.eventCount}건을 가져왔습니다.`)
-      } catch (err) {
-        console.error('[폰백업 가져오기 실패]', err)
-        alert('백업 파일을 가져오지 못했습니다. JSON 백업 파일인지 확인해 주세요.')
-      }
-    }
-    input.click()
   }
 
   async function handleCompleteClearPhoneData() {
@@ -1624,13 +1601,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             </button>
             <button className={styles.typeBtn} onClick={handlePhoneBackupDownload}>
               <span className={styles.typeIcon}>💾</span>
-              <span className={styles.typeLabel}>스마트폰 백업 저장</span>
+              <span className={styles.typeLabel}>자료백업</span>
             </button>
-                        <button className={styles.typeBtn} onClick={handlePhoneBackupImportClick}>
-              <span className={styles.typeIcon}>📥</span>
-              <span className={styles.typeLabel}>백업 가져오기</span>
-            </button>
-<button className={styles.typeBtn} onClick={handleSubmitBackupFileClick}>
+            <button className={styles.typeBtn} onClick={handleSubmitBackupFileClick}>
               <span className={styles.typeIcon}>📁</span>
               <span className={styles.typeLabel}>파일제출</span>
             </button>

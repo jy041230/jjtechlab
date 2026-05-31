@@ -446,7 +446,7 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
       ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([])
 
       if (pixelPerMm > 0) {
-        const pxDist = Math.abs(pts[1].x - pts[0].x)
+        const pxDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
         const mm  = pxDist / pixelPerMm
         const midX = (dp[0].x + dp[1].x) / 2
         const midY = (dp[0].y + dp[1].y) / 2
@@ -943,7 +943,7 @@ export default function FrozenMeasure({
           <button
             type="button"
             className={styles.stickerFitBtn}
-            hidden aria-hidden="true" onClick={autoFindStickerPoints}
+            onClick={autoFindStickerPoints}
             aria-label="색깔 스티커로 P1 P2 자동찾기"
           >
             스티커<br />찾기
@@ -952,7 +952,7 @@ export default function FrozenMeasure({
             <button
               type="button"
               className={styles.autoFitBtn}
-              hidden aria-hidden="true" onClick={autoFitStemEdges}
+              onClick={autoFitStemEdges}
               aria-label="색상으로 줄기 경계 자동맞춤"
             >
               자동<br />맞춤
@@ -995,10 +995,9 @@ export default function FrozenMeasure({
             ? '색깔 스티커를 붙였으면 스티커찾기를 누르세요'
             : points.length === 1
             ? '확대 상태에서 반대쪽 끝(P2)을 탭하세요'
-            : 'P1·P2를 줄기 양쪽 끝에 맞춘 뒤 측정을 누르세요'}
+            : '자동맞춤을 누른 뒤 필요하면 손으로 조정하세요'}
         </div>
       )}
     </div>
   )
 }
-
