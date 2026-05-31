@@ -1,0 +1,176 @@
+.panel {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── 상단 제목 ── */
+.title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--color-text-secondary);
+  padding: 10px 14px 6px;
+  background: #f0f4f0;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ── 항목 행 ── */
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* 항목 헤더: 아이콘 + 라벨 + 현재값 */
+.itemHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.itemIcon  { font-size: 20px; flex-shrink: 0; }
+.itemLabel { font-size: 17px; font-weight: 700; color: var(--color-text); flex: 1; }
+
+.itemValue {
+  font-size: 20px;
+  font-weight: 800;
+  color: #aaa;
+  min-width: 72px;
+  text-align: right;
+}
+.itemValueFilled { color: var(--color-primary-dark); }
+
+/* ── 숫자 입력 버튼 ── */
+.numActions {
+  display: flex;
+  gap: 8px;
+}
+
+.cameraBtn {
+  flex: 1;
+  min-height: 48px;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.voiceBtn {
+  flex: 1;
+  min-height: 48px;
+  background: #eef2ff;
+  color: #3949ab;
+  border: 1.5px solid #9fa8da;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* ── 등급 선택 버튼 ── */
+.gradeRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.gradeBtn {
+  flex: 1;
+  min-height: 44px;
+  min-width: 52px;
+  background: #f0f0f0;
+  color: #555;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 2px solid transparent;
+}
+
+.gradeBtnActive {
+  background: #d8f3dc;
+  color: var(--color-primary-dark);
+  border-color: var(--color-primary-light);
+}
+
+/* -- 등급 음성 선택 버튼 -- */
+.gradeVoiceBtn {
+  width: 100%;
+  min-height: 44px;
+  background: #eef2ff;
+  color: #3949ab;
+  border: 1.5px solid #9fa8da;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+/* -- 직접 입력 행 (숫자 항목) -- */
+.directRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.directInput {
+  flex: 1;
+  height: 46px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  background: #fff;
+  border: 1.5px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0 12px;
+  text-align: right;
+  min-width: 0;
+  -moz-appearance: textfield;
+}
+.directInput::-webkit-outer-spin-button,
+.directInput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.directInput:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(45,106,79,0.15);
+}
+
+.directUnit {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  min-width: 28px;
+}
+
+.directConfirmBtn {
+  min-height: 46px;
+  min-width: 60px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+  padding: 0 14px;
+}

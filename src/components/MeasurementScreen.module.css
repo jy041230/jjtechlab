@@ -1,0 +1,1213 @@
+/* ════════════════════════════════════════
+   측정 화면 — 고령자 친화 레이아웃
+   본문 18pt+, 버튼 20pt+, 터치타깃 48dp+
+   ════════════════════════════════════════ */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* ── 헤더 ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--color-primary);
+  color: #fff;
+  flex-shrink: 0;
+  min-height: 56px;
+}
+
+.headerTitle { display: flex; flex-direction: column; gap: 2px; }
+.appName     { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+.milestone   { font-size: 12px; opacity: 0.75; font-weight: 400; }
+
+.markerStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.15);
+}
+.markerDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.markerDetected { color: #d8f3dc; }
+.markerMissing  { color: #ffd6d6; }
+.markerDetected .markerDot { background: #95d5b2; }
+.markerMissing  .markerDot { background: #ffa8a8; }
+
+/* ── 에러 배너 ── */
+.errorBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fff3cd;
+  border-bottom: 2px solid #ffc107;
+  flex-shrink: 0;
+}
+.errorText { font-size: 15px; color: #664d03; line-height: 1.5; white-space: pre-line; }
+
+/* ── 카메라 / 플레이스홀더 영역 ── */
+.cameraArea {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  background: #1a1a1a;
+}
+
+/* 카메라 모드: typeSelector·actionArea가 숨겨져 남은 공간을 전부 차지 */
+.cameraAreaExpanded {
+  flex: 1 1 0;
+}
+
+/* 촬영 후 ArUco 검출 중 오버레이 */
+.processingOverlay {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #111;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+}
+.processingSpinner { font-size: 48px; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 플레이스홀더 */
+.cameraPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.cameraIcon  { font-size: 56px; opacity: 0.35; }
+.cameraHint  { font-size: var(--font-size-body); color: rgba(255,255,255,0.65); text-align: center; padding: 0 28px; line-height: 1.6; }
+.cameraHint2 { font-size: 15px; color: rgba(255,255,255,0.4); text-align: center; padding: 0 28px; line-height: 1.5; }
+
+/* ── 측정 버튼 줄 (6개, 2줄 배치) ── */
+.typeSelector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.typeBtn {
+  flex: 1 1 calc(33.33% - 6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 6px;
+  min-height: 52px;
+  min-width: 70px;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 2px solid transparent;
+}
+.typeBtnActive {
+  background: #d8f3dc;
+  color: var(--color-primary-dark);
+  border-color: var(--color-primary-light);
+}
+.typeIcon  { font-size: 18px; }
+.typeLabel { font-size: 12px; }
+
+/* ── 연구정보 입력 ── */
+.researchMetaPanel {
+  flex-shrink: 0;
+  padding: 8px 10px 6px;
+  background: #f7fbf8;
+  border-top: 1px solid var(--color-border);
+}
+
+.researchMetaHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.researchMetaHeader strong {
+  font-size: 14px;
+}
+
+.researchMetaHeader span {
+  font-size: 12px;
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
+.researchMetaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.researchMetaGrid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.researchMetaGrid input,
+.researchMetaGrid select {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ── IDLE 안내 ── */
+.idlePlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.idleHint {
+  font-size: 18px;
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+}
+
+/* ── 카메라 모드 하단 바 ── */
+.cameraBottomBar {
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: 8px 10px;
+}
+
+/* 버튼 두 개 가로 나열 */
+.bottomRow {
+  display: flex;
+  gap: 10px;
+}
+
+.barBtnSecondary {
+  flex: 1;
+  min-height: 52px;
+  background: #f0f0f0;
+  color: var(--color-text);
+  border-radius: var(--border-radius);
+  font-size: 18px;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.barBtnClose {
+  flex: 1;
+  min-height: 52px;
+  background: #e9ecef;
+  color: #555;
+  border-radius: var(--border-radius);
+  font-size: 18px;
+  font-weight: 600;
+  padding: 10px 12px;
+}
+
+.barBtnConfirm {
+  flex: 1.4;
+  min-height: 52px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--border-radius);
+  font-size: 20px;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+/* ── 결과 바 (카메라 모드 RESULT 단계) ── */
+.resultBar {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.resultBarValue {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.resultBarMm {
+  font-size: 34px;
+  font-weight: 900;
+  color: var(--color-primary);
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.resultBarUnit {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.unvalidatedBadge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 6px;
+  border: 1px solid #ffc107;
+  align-self: center;
+}
+
+.validationWarn {
+  font-size: 14px;
+  color: #664d03;
+  background: #fff3cd;
+  border-radius: 8px;
+  padding: 6px 10px;
+  line-height: 1.5;
+}
+
+.resultNote {
+  font-size: 12px;
+  color: #6c757d;
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.caliperInputWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text-secondary);
+}
+
+.caliperInputWrap div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caliperInputWrap input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 2px solid #cad8ce;
+  border-radius: 10px;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--color-text);
+}
+
+.caliperInputWrap input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.caliperInputWrap span {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--color-text-secondary);
+}
+
+.errorNote {
+  font-size: 14px;
+  color: #1a3a5c;
+  background: #e8f4fd;
+  border: 1px solid #74b9ff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-weight: 800;
+}
+
+.resultBarActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.resultQuickSaveBtn {
+  margin-left: auto;
+  min-height: 40px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+
+.resultQuickSaveBtn:disabled,
+.barBtnConfirm:disabled {
+  background: #9ca3af;
+  color: #f3f4f6;
+}
+
+/* ── 확정 배지 (콘텐츠 영역 중앙) ── */
+.confirmedBadge {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* ── 하단 상태 바 ── */
+.footer {
+  flex-shrink: 0;
+  padding: 6px 16px 10px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+.statusBar  { text-align: center; }
+.statusText { font-size: 16px; color: var(--color-text-secondary); font-weight: 500; }
+
+/* ── 토양 입력 폼 ── */
+.soilForm {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--color-surface);
+}
+
+.soilTitle {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.soilDevice {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  background: #eef2ff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  line-height: 1.5;
+}
+
+.soilFields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.soilField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.soilLabel {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.soilInputRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.soilInput {
+  flex: 1;
+  height: 54px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--color-text);
+  background: #fff;
+  border: 2px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0 14px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.soilInput::-webkit-outer-spin-button,
+.soilInput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.soilInput:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(45,106,79,0.15);
+}
+
+.soilUnit {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 38px;
+}
+
+/* ── 흉고직경 촬영 안내 + 수고 후속 안내 ── */
+.measureHintBox {
+  background: #fff8e1;
+  border: 1.5px solid #ffc107;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 0 4px;
+}
+
+.measureHintText {
+  font-size: 14px;
+  color: #664d03;
+  line-height: 1.7;
+  white-space: pre-line;
+  text-align: left;
+}
+
+/* ── 토양 음성 입력 영역 ── */
+.soilVoiceArea {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.soilVoiceRow {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.soilVoiceBtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 6px;
+  min-height: 72px;
+  background: #eef8f2;
+  border: 2px solid var(--color-primary-light);
+  border-radius: var(--border-radius);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* ── 작업일지 버튼 ── */
+.journalBtn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 12px;
+  min-height: 64px;
+  background: #e8f4fd;
+  border: 2px solid #74b9ff;
+  border-radius: var(--border-radius);
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a3a5c;
+}
+
+/* ── 토양 OCR 가이드 박스 오버레이 (SOIL_LIVE 페이즈) ── */
+.soilGuideOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.soilGuideBox {
+  width: 96%;
+  height: 72%;
+  border: 3px solid rgba(255, 220, 0, 0.98);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.06);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+
+.soilGuideText {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 230, 0, 0.98);
+  background: rgba(0,0,0,0.55);
+  padding: 4px 12px;
+  border-radius: 10px;
+  white-space: pre-line;
+  text-align: center;
+}
+
+/* ── OCR 결과 뷰 (SOIL_OCR_RESULT 페이즈) ── */
+.soilOcrView {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+.soilOcrImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.soilOcrOverlay {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 82%;
+}
+
+.soilOcrCard {
+  background: rgba(10, 20, 10, 0.88);
+  border-radius: 14px;
+  padding: 16px 20px;
+  text-align: center;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.soilOcrFieldName {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  letter-spacing: 0.5px;
+}
+
+.soilOcrNumRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.soilOcrNum {
+  font-size: 60px;
+  font-weight: 900;
+  color: #6be16b;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.soilOcrUnit {
+  font-size: 28px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.55);
+}
+
+.soilOcrConfHigh   { font-size: 15px; color: #6be16b; }
+.soilOcrConfMedium { font-size: 15px; color: #ffd166; }
+.soilOcrConfLow    { font-size: 15px; color: #ff6b6b; }
+
+.soilOcrFailCard {
+  background: rgba(10,10,10,0.85);
+  border-radius: 14px;
+  padding: 18px 20px;
+  text-align: center;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.soilOcrFailIcon { font-size: 36px; }
+.soilOcrFailText { font-size: 18px; font-weight: 700; }
+.soilOcrFailSub  { font-size: 15px; color: rgba(255,255,255,0.6); }
+
+/* -- 토양 전용 헤더 -- */
+.soilHeader {
+  display: flex;
+  align-items: center;
+  padding: 7px 12px;
+  background: var(--color-primary);
+  color: #fff;
+  flex-shrink: 0;
+  min-height: 48px;
+  gap: 0;
+}
+
+.soilHeaderTitle {
+  flex: 1;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.soilBackBtn {
+  min-height: 34px;
+  padding: 5px 12px;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-height: 740px) {
+  .soilHeader {
+    min-height: 42px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .soilBackBtn {
+    min-height: 30px;
+    padding: 4px 10px;
+  }
+}
+
+/* -- 토양 전용 액션 바 (하단 고정) -- */
+.soilActionBar {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px 8px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+/* -- cameraArea 배경: 토양 패널 모드에서는 밝게 -- */
+.cameraAreaSoil {
+  background: var(--color-bg);
+}
+
+/* ── 토양 촬영 시작 안내 ── */
+.soilStartBox {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+}
+
+.soilStartHint {
+  font-size: 18px;
+  color: var(--color-text-secondary);
+  text-align: center;
+  line-height: 1.7;
+}
+
+.soilStartBtn {
+  min-height: 64px;
+  min-width: 180px;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 16px;
+  font-size: 20px;
+  font-weight: 800;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── 토양 방법 선택 ── */
+.soilMethodBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 16px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.soilMethodTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.soilMethodGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.soilMethodBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 110px;
+  padding: 16px 10px;
+  border-radius: 16px;
+  border: 2px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.soilMethodBtn:active {
+  background: #f0f4ff;
+  border-color: var(--color-primary);
+}
+
+.soilMethodIcon  { font-size: 34px; line-height: 1; }
+.soilMethodLabel { font-size: 18px; font-weight: 700; color: var(--color-text); }
+.soilMethodSub   { font-size: 12px; color: var(--color-text-secondary); text-align: center; line-height: 1.4; }
+
+.soilMethodError {
+  font-size: 15px;
+  color: #e03131;
+  text-align: center;
+  padding: 8px 12px;
+  background: #fff5f5;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 480px;
+}
+
+.journalReview {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+.journalPhotoBox {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: #111;
+}
+
+.journalEmptyBox {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: #f7f9f7;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.journalEmptyIcon {
+  font-size: 58px;
+  opacity: 0.65;
+}
+
+.journalEmptyBox p {
+  margin: 0;
+  max-width: 360px;
+  font-size: 18px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.journalPhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.journalPhotoBox span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.62);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.journalActions {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #fff;
+  border-top: 1px solid #d9e5dc;
+}
+
+.journalPrimaryBtn,
+.journalSecondaryBtn {
+  min-height: 58px;
+  border-radius: 14px;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.journalPrimaryBtn {
+  background: #2d6a4f;
+  color: #fff;
+}
+
+.journalSecondaryBtn {
+  background: #eef4ef;
+  color: #1b4332;
+  border: 1.5px solid #b7d2bf;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 엑셀 미리보기 ── */
+.excelPreviewBox {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 16px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.excelPreviewTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.excelPreviewList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.excelPreviewItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  border-left: 4px solid var(--color-primary);
+}
+
+.excelPreviewTime {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.excelPreviewNote {
+  font-size: 13px;
+  color: #555;
+  font-style: italic;
+}
+
+.excelPreviewMeas {
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.excelPreviewActions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.excelCancelBtn {
+  flex: 1;
+  min-height: 52px;
+  border-radius: 12px;
+  border: 2px solid #adb5bd;
+  background: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  color: #555;
+  cursor: pointer;
+}
+
+.excelConfirmBtn {
+  flex: 2;
+  min-height: 52px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-primary);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ── 연구DB 내보내기 ── */
+.researchDbBox {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 14px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.researchDbTitle {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.researchDbGuide {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #6b4e00;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.researchDbActions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.researchDbText {
+  flex: 1;
+  min-height: 160px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: #fff;
+  color: #222;
+  font-size: 12px;
+  line-height: 1.45;
+  resize: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+/* ── 캘리퍼스 입력 ── */
+.caliperPanel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--color-bg);
+  overflow-y: auto;
+}
+
+.caliperMetaBadge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eaf4ee;
+  border: 1px solid #b7d2bf;
+  color: #1b4332;
+}
+
+.caliperMetaBadge strong {
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.caliperMetaBadge span {
+  font-size: 15px;
+  font-weight: 800;
+  color: #43624f;
+  text-align: right;
+}
+
+.targetBadge {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eaf4ee;
+  border: 1px solid #b7d2bf;
+  color: #1b4332;
+}
+
+.targetBadge strong {
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.targetBadge span {
+  font-size: 14px;
+  font-weight: 800;
+  color: #43624f;
+  text-align: right;
+}
+
+.caliperPhotoBox {
+  width: 100%;
+  min-height: 190px;
+  max-height: 280px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #1b1b1b;
+  border: 1px solid #d9e5dc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.caliperPhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.caliperEmpty {
+  padding: 22px;
+  color: #fff;
+  text-align: center;
+}
+
+.caliperEmpty span {
+  display: block;
+  font-size: 56px;
+  margin-bottom: 10px;
+}
+
+.caliperEmpty p {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+
+.caliperActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.caliperDirectInput {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--color-text);
+  font-size: 19px;
+  font-weight: 900;
+  border: 1px solid #d9e5dc;
+}
+
+.caliperDirectInput div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.caliperDirectInput input {
+  flex: 1;
+  min-width: 0;
+  height: 60px;
+  border-radius: 14px;
+  border: 2px solid #b7d2bf;
+  padding: 0 14px;
+  font-size: 30px;
+  font-weight: 900;
+  color: #1b4332;
+}
+
+.caliperDirectInput span {
+  font-size: 24px;
+  color: var(--color-text-secondary);
+}
+
+.caliperGuide {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff7e6;
+  color: #6b4e00;
+  font-size: 16px;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.caliperSaveBtn {
+  min-height: 64px;
+  border-radius: 18px;
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+}
