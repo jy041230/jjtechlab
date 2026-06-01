@@ -961,10 +961,6 @@ export default function FrozenMeasure({
         </div>
       )}
 
-      {isPlacing && view.zoom > 1.01 && (
-        <div className={styles.panHint}>손가락으로 사진 이동</div>
-      )}
-
       {/* 마커 인식 실패 오버레이 */}
       {tapPhase === 'no_marker' && (
         <div className={styles.noMarkerOverlay}>
