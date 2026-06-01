@@ -176,6 +176,8 @@ export async function saveMeasurement({ typeId, value, unit = 'mm', validationSt
 }
 
 export async function saveDiameterMeasurement({ typeId, mm, validationStatus, pixelPerMm, imageDataUrl, meta = {} }) {
+  const db = await openDB()
+  const timestamp = new Date().toISOString()
   const eventId = await saveMeasurement({
     typeId,
     value: mm,
@@ -199,7 +201,7 @@ export async function saveDiameterMeasurement({ typeId, mm, validationStatus, pi
     ]
     for (const rec of extraRecords) {
       await txAdd(db, 'measurement_data', {
-        event_id,
+        event_id: eventId,
         measurement_type:         rec.measurement_type,
         measurement_value:        rec.measurement_value,
         measurement_unit:         rec.measurement_unit,
@@ -583,6 +585,30 @@ export async function clearResearchDatabase() {
     req.onerror = () => reject(req.error)
   })))
   return true
+}
+
+export async function findLatestCaliperDiameter(treeId) {
+  if (!treeId) return null
+  const db = await openDB()
+  const events = await txGetAll(db, 'event_units')
+  const measurements = await txGetAll(db, 'measurement_data')
+
+  const treeEventIds = new Set(
+    events.filter(e => e.tree_id === treeId).map(e => e.event_id)
+  )
+  const eventTimestampMap = new Map(events.map(e => [e.event_id, e.timestamp]))
+
+  const caliperMeasurements = measurements.filter(m =>
+    treeEventIds.has(m.event_id) && m.measurement_type === '캘리퍼스직경'
+  )
+
+  if (!caliperMeasurements.length) return null
+
+  caliperMeasurements.sort((a, b) =>
+    (eventTimestampMap.get(b.event_id) ?? '').localeCompare(eventTimestampMap.get(a.event_id) ?? '')
+  )
+
+  return Number(caliperMeasurements[0].measurement_value) || null
 }
 
 function groupByEvent(records) {

@@ -9,7 +9,7 @@
  *   토양측정:          SOIL_LIVE → SOIL_INPUT → CONFIRMED
  *   수고:              HEIGHT_TODO
  */
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useCamera }        from '../hooks/useCamera'
 import { useVoice }         from '../hooks/useVoice'
 import { detectAruco, preloadOpenCV, avgSidePx } from '../utils/aruco'
@@ -25,6 +25,8 @@ import {
   importPhoneBackupJson,
   makeResearchDatabaseCsv,
   clearResearchDatabase,
+  findLatestCaliperDiameter,
+  getResearchDatabaseRows,
 } from '../utils/db'
 import { parseExcelSoil } from '../utils/excelParser'
 import LiveCamera     from './LiveCamera'
@@ -119,6 +121,8 @@ const PHASE = {
   JOURNAL_LIVE:       'journal_live',
   JOURNAL_REVIEW:     'journal_review',
   RESEARCH_DB:        'research_db',
+  CAMERA_METHOD:      'camera_method',
+  LIST_VIEW:          'list_view',
 }
 
 const SHOW_DEBUG_OVERLAY = false
@@ -180,9 +184,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const soilPhotoFileRef = useRef(null)
   const journalPhotoFileRef = useRef(null)
   const caliperCameraFileRef = useRef(null)
-  const caliperPhotoFileRef = useRef(null)
+  const caliperPhotoFileRef = useRef(null)
   const phoneBackupFileRef = useRef(null)
   const researchDbTextRef = useRef(null)
+  const cameraMethodFileRef = useRef(null)
 
   const [markerInfo, setMarkerInfo] = useState(null) // 디버그: 검출 메타데이터
   const pointsRef = useRef([])
@@ -195,6 +200,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const [caliperMm, setCaliperMm] = useState('')
   const [cvState, setCvState] = useState('loading') // 'loading' | 'ready' | 'error'
   const [cvError, setCvError] = useState('')
+  const [caliperSource, setCaliperSource] = useState(null) // null | 'auto' | 'manual'
+  const [listRows, setListRows] = useState([])
+  const [listLoading, setListLoading] = useState(false)
   const histActiveRef = useRef(false)
   const nativeBackRef = useRef(null)
 
@@ -287,7 +295,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setPoints([]); setResult(null); setDebugInfo(null)
     setSoilValues({}); setExcelRows(null); setExcelError('')
     setCaliperMm('')
+    setCaliperSource(null)
     setResearchDb(null)
+    setListRows([])
     setPhase(PHASE.IDLE)
   }
 
@@ -300,6 +310,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setCaliperDirectMm('')
     setCaliperPhoto(null)
     setResearchDb(null)
+    setCaliperSource(null)
+    setListRows([])
   }
 
   // ── 타입 버튼: 즉시 동작 ────────────────────────────────────────────────
@@ -308,8 +320,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     resetAll()
     setSelectedType(t)
     if (t.usesCamera) {
-      setPhase(PHASE.LIVE)
-      await startCamera()
+      setPhase(PHASE.CAMERA_METHOD)
     } else if (t.usesCaliper) {
       setCaliperPhoto(null)
       setCaliperDirectMm('')
@@ -319,6 +330,26 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       setPhase(PHASE.SOIL_METHOD)
     } else {
       setPhase(PHASE.HEIGHT_TODO)
+    }
+  }
+
+  async function handleCameraMethodSelect(method) {
+    if (method === '촬영') {
+      setPhase(PHASE.LIVE)
+      await startCamera()
+    } else {
+      cameraMethodFileRef.current.value = ''
+      cameraMethodFileRef.current.click()
+    }
+  }
+
+  async function handleCameraMethodFileChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    try {
+      await handlePhotoFileCapture(file)
+    } finally {
+      e.target.value = ''
     }
   }
 
@@ -411,7 +442,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setResult(null)
   }
 
-  function handleMeasurePoints() {
+  async function handleMeasurePoints() {
     const measurePoints = pointsRef.current
     let measurePixelPerMm = pixelPerMmRef.current
     if (measurePixelPerMm <= 0 && markerCorners?.length === 4) {
@@ -434,6 +465,15 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       ? validateHeight(value)
       : validateDiameter(mm, selectedType.id)
     setResult({ value, mm, validation, pixelPerMm: measurePixelPerMm, pxDist })
+    if ((selectedType.id === '줄기직경' || selectedType.id === '흉고직경') && pxDist > 0) {
+      try {
+        const latestCaliper = await findLatestCaliperDiameter(getResearchMeta().treeId)
+        if (latestCaliper !== null && latestCaliper > 0) {
+          setCaliperMm(String(latestCaliper))
+          setCaliperSource('auto')
+        }
+      } catch { /* 조용히 무시 */ }
+    }
     console.table({
       '검출 프레임(px)': markerInfo ? `${markerInfo.frameW}×${markerInfo.frameH}` : '?',
       '원본 이미지(px)': `${frozenSize.w}×${frozenSize.h}`,
@@ -454,8 +494,14 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setResult(null)
   }
 
+  function handleCaliperChange(value) {
+    setCaliperMm(value)
+    setCaliperSource('manual')
+  }
+
   async function handleConfirm() {
     const caliperNumber = Number(caliperMm)
+    const hasManualCaliper = caliperSource === 'manual' && Number.isFinite(caliperNumber) && caliperNumber > 0
     let savedEventId = null
     try {
       if (selectedType.unit === 'mm') {
@@ -470,6 +516,17 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             caliperMm: Number.isFinite(caliperNumber) && caliperNumber > 0 ? caliperNumber : null,
           },
         })
+        if (hasManualCaliper) {
+          const caliperEventId = await saveDiameterMeasurement({
+            typeId:           '캘리퍼스직경',
+            mm:               caliperNumber,
+            validationStatus: true,
+            pixelPerMm:       null,
+            imageDataUrl:     null,
+            meta:             getResearchMeta(),
+          })
+          await autoSubmitSavedEvents(caliperEventId)
+        }
       } else {
         savedEventId = await saveMeasurement({
           typeId:           selectedType.id,
@@ -998,6 +1055,20 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setVoiceContext(null)
   }
 
+  async function handleOpenList() {
+    resetAll()
+    setListLoading(true)
+    setPhase(PHASE.LIST_VIEW)
+    try {
+      const rows = await getResearchDatabaseRows()
+      setListRows(rows)
+    } catch (err) {
+      console.error('[리스트 로드 실패]', err)
+      setListRows([])
+    }
+    setListLoading(false)
+  }
+
   // ── 레이아웃 플래그 ───────────────────────────────────────────────────────
 
   const isCameraMode = [
@@ -1013,6 +1084,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const isCaliperScreen = phase === PHASE.CALIPER_INPUT
   const isResearchDbScreen = phase === PHASE.RESEARCH_DB
   const isJournalSubScreen = [PHASE.JOURNAL_METHOD, PHASE.JOURNAL_REVIEW].includes(phase)
+  const isListViewScreen = phase === PHASE.LIST_VIEW
+  const isCameraMethodScreen = phase === PHASE.CAMERA_METHOD
   const treeIdOptions = getTreeIdOptions(researchMeta.treeGroup)
 
   const frozenTapPhase = {
@@ -1059,6 +1132,22 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             <span className={styles.soilHeaderTitle}>토양측정</span>
             <div style={{ width: 72, flexShrink: 0 }} />
           </header>
+        ) : isCameraMethodScreen ? (
+          <header className={styles.soilHeader}>
+            <button className={styles.soilBackBtn} onClick={() => setPhase(PHASE.IDLE)}>
+              &larr; 뒤로
+            </button>
+            <span className={styles.soilHeaderTitle}>{selectedType.label}</span>
+            <div style={{ width: 72, flexShrink: 0 }} />
+          </header>
+        ) : isListViewScreen ? (
+          <header className={styles.soilHeader}>
+            <button className={styles.soilBackBtn} onClick={() => setPhase(PHASE.IDLE)}>
+              &larr; 뒤로
+            </button>
+            <span className={styles.soilHeaderTitle}>측정 리스트</span>
+            <div style={{ width: 72, flexShrink: 0 }} />
+          </header>
         ) : (
           <header className={styles.header}>
             <div className={styles.headerTitle}>
@@ -1088,7 +1177,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       )}
 
       {/* ── 메인 콘텐츠 영역 ── */}
-      <section className={`${styles.cameraArea} ${isCameraMode ? styles.cameraAreaExpanded : ''} ${(isSoilInputScreen || isJournalSubScreen || isCaliperScreen) ? styles.cameraAreaSoil : ''}`}>
+      <section className={`${styles.cameraArea} ${isCameraMode ? styles.cameraAreaExpanded : ''} ${(isSoilInputScreen || isJournalSubScreen || isCaliperScreen || isListViewScreen || isCameraMethodScreen) ? styles.cameraAreaSoil : ''}`}>
 
         {/* 확정 완료 */}
         {phase === PHASE.CONFIRMED && <ConfirmedBadge />}
@@ -1357,7 +1446,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             </p>
             <p className={styles.researchDbGuide}>
               PC 자동 저장은 계측 저장 때마다 1건씩 처리합니다. 이 화면에서는 CSV를 내려받거나 복사해서 확인용으로만 보관하세요.
-            </p>
+            </p>
             <div className={styles.researchDbActions}>
               <button className={styles.excelConfirmBtn} onClick={handleResearchDbDownload}>
                 CSV 다운로드
@@ -1452,6 +1541,31 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
+        {/* 카메라 측정 방식 선택 */}
+        {phase === PHASE.CAMERA_METHOD && (
+          <div className={styles.soilMethodBox}>
+            <ResearchTargetBadge meta={getResearchMeta()} />
+            <p className={styles.soilMethodTitle}>{selectedType.label} — 측정 방식 선택</p>
+            <div className={styles.soilMethodGrid}>
+              <button className={styles.soilMethodBtn} onClick={() => handleCameraMethodSelect('촬영')}>
+                <span className={styles.soilMethodIcon}>📷</span>
+                <span className={styles.soilMethodLabel}>촬영</span>
+                <span className={styles.soilMethodSub}>카메라로 직접 촬영</span>
+              </button>
+              <button className={styles.soilMethodBtn} onClick={() => handleCameraMethodSelect('사진불러오기')}>
+                <span className={styles.soilMethodIcon}>🖼️</span>
+                <span className={styles.soilMethodLabel}>사진 불러오기</span>
+                <span className={styles.soilMethodSub}>갤러리에서 이미 찍은 사진 사용</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 리스트 뷰 */}
+        {phase === PHASE.LIST_VIEW && (
+          <ListViewPanel rows={listRows} loading={listLoading} />
+        )}
+
         {/* IDLE 안내 */}
         {phase === PHASE.IDLE && (
           <div className={styles.idlePlaceholder}>
@@ -1498,8 +1612,15 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         style={{ display: 'none' }}
         onChange={handleCaliperPhotoFileChange}
       />
+      <input
+        type="file"
+        accept="image/*"
+        ref={cameraMethodFileRef}
+        style={{ display: 'none' }}
+        onChange={handleCameraMethodFileChange}
+      />
 
-      {/* ── 버튼 줄: 카메라 모드·토양 입력·토양 서브화면에서 숨김 ── */}
+      {/* ── 버튼 줄: 카메라 모드·토양 입력·토양 서브화면에서 숨김 ── */}
       <input
         type="file"
         accept="application/json,.json,text/json,text/plain"
@@ -1507,7 +1628,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         style={{ display: 'none' }}
         onChange={handlePhoneBackupImportFileChange}
       />
-      {!isCameraMode && !isSoilInputScreen && !isSoilSubScreen && !isCaliperScreen && !isResearchDbScreen && !isJournalSubScreen && (
+      {!isCameraMode && !isSoilInputScreen && !isSoilSubScreen && !isCaliperScreen && !isResearchDbScreen && !isJournalSubScreen && !isListViewScreen && !isCameraMethodScreen && (
         <>
           <section className={styles.researchMetaPanel}>
             <div className={styles.researchMetaHeader}>
@@ -1580,10 +1701,14 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
               <span className={styles.typeIcon}>📝</span>
               <span className={styles.typeLabel}>작업일지</span>
             </button>
+            <button className={styles.typeBtn} onClick={handleOpenList}>
+              <span className={styles.typeIcon}>📊</span>
+              <span className={styles.typeLabel}>리스트</span>
+            </button>
             <button className={styles.typeBtn} onClick={onGoHistory}>
               <span className={styles.typeIcon}>📋</span>
               <span className={styles.typeLabel}>이력</span>
-            </button>
+            </button>
             <button className={styles.typeBtn} onClick={handlePhoneBackupDownload}>
               <span className={styles.typeIcon}>💾</span>
               <span className={styles.typeLabel}>스마트폰 백업 저장</span>
@@ -1591,7 +1716,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             <button className={styles.typeBtn} onClick={handlePhoneBackupImportClick}>
               <span className={styles.typeIcon}>📥</span>
               <span className={styles.typeLabel}>백업 가져오기</span>
-            </button>
+            </button>
             <button className={styles.typeBtn} onClick={handleCompleteClearPhoneData}>
               <span className={styles.typeIcon}>🗑️</span>
               <span className={styles.typeLabel}>완전삭제</span>
@@ -1628,7 +1753,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
               points={points}
               selectedType={selectedType}
               caliperMm={caliperMm}
-              onCaliperChange={setCaliperMm}
+              onCaliperChange={handleCaliperChange}
               onMeasure={handleMeasurePoints}
               onRetake={handleRetakePhoto}
               onRemeasure={handleRemeasure}
@@ -1816,10 +1941,141 @@ function StatusBar({ phase, selectedType, points }) {
     [PHASE.JOURNAL_METHOD]:     '촬영 또는 음성기록을 선택하세요',
     [PHASE.JOURNAL_LIVE]:       '작업 부위나 수목 상태가 보이도록 촬영하세요',
     [PHASE.JOURNAL_REVIEW]:     '이미지를 불러오거나 녹음을 시작하세요',
+    [PHASE.CAMERA_METHOD]:      '촬영 또는 사진 불러오기를 선택하세요',
+    [PHASE.LIST_VIEW]:          '스마트폰 저장 자료를 표로 확인합니다',
   }
   return (
     <div className={styles.statusBar}>
       <span className={styles.statusText}>{msgs[phase] ?? ''}</span>
+    </div>
+  )
+}
+
+const LIST_TREE_GROUPS = ['케이싱 1년', '케이싱 2년', '직수수목(대조수목)']
+const LIST_GROUP_PREFIX = { '케이싱 1년': '케이싱1년', '케이싱 2년': '케이싱2년', '직수수목(대조수목)': '대조수목' }
+const LIST_GROUP_SHORT = { '케이싱 1년': '1년', '케이싱 2년': '2년', '직수수목(대조수목)': '대조' }
+
+function ListViewPanel({ rows, loading }) {
+  const [filterGroup, setFilterGroup] = useState('전체')
+  const [filterDate, setFilterDate] = useState('')
+
+  const tableData = useMemo(() => {
+    const filtered = rows.filter(r => {
+      if (filterGroup !== '전체' && r.수목구분 !== filterGroup) return false
+      if (filterDate && r.날짜 !== filterDate) return false
+      return true
+    })
+    const groupsToShow = filterGroup === '전체' ? LIST_TREE_GROUPS : [filterGroup]
+
+    return groupsToShow.map(group => {
+      const prefix = LIST_GROUP_PREFIX[group] ?? group
+      const groupRows = filtered.filter(r => r.수목구분 === group)
+      const treeIds = Array.from({ length: 10 }, (_, i) => `${prefix}-${String(i + 1).padStart(2, '0')}`)
+      const treeData = treeIds.map(treeId => {
+        const treeRows = groupRows.filter(r => r.수목ID === treeId)
+        const hasDiameter = treeRows.some(r => Number(r.줄기직경mm) > 0 || Number(r.캘리퍼스직경mm) > 0 || Number(r.흉고직경mm) > 0)
+        const hasPH = treeRows.some(r => Number(r.토양PH) > 0)
+        const hasHumidity = treeRows.some(r => Number(r.토양수분) > 0)
+        const hasTemp = treeRows.some(r => Number(r.토양온도) > 0)
+        const count = [hasDiameter, hasPH, hasHumidity, hasTemp].filter(Boolean).length
+        const status = count === 4 ? '완료' : count > 0 ? '일부' : '누락'
+        return { treeId, hasDiameter, hasPH, hasHumidity, hasTemp, status, count }
+      })
+      const completedCount = treeData.filter(d => d.status === '완료').length
+      return { group, treeData, completedCount }
+    })
+  }, [rows, filterGroup, filterDate])
+
+  if (loading) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center', color: '#666', fontSize: 16 }}>
+        불러오는 중…
+      </div>
+    )
+  }
+
+  const cellStyle = (has) => ({
+    padding: '5px 4px',
+    textAlign: 'center',
+    fontSize: 15,
+    color: has ? '#1b5e20' : '#bdbdbd',
+  })
+  const rowBg = (status) => status === '완료' ? '#e8f5e9' : status === '일부' ? '#fff8e1' : '#fafafa'
+
+  return (
+    <div style={{ overflowY: 'auto', height: '100%', paddingBottom: 8 }}>
+      <div style={{ padding: '8px 12px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', background: '#f5f7f2', borderBottom: '1px solid #dde7de' }}>
+        <select
+          value={filterGroup}
+          onChange={e => setFilterGroup(e.target.value)}
+          style={{ fontSize: 14, padding: '6px 8px', borderRadius: 6, border: '1px solid #cad8ce' }}
+        >
+          <option>전체</option>
+          {LIST_TREE_GROUPS.map(g => <option key={g}>{g}</option>)}
+        </select>
+        <input
+          type="date"
+          value={filterDate}
+          onChange={e => setFilterDate(e.target.value)}
+          style={{ fontSize: 14, padding: '6px 8px', borderRadius: 6, border: '1px solid #cad8ce' }}
+        />
+        {filterDate && (
+          <button
+            onClick={() => setFilterDate('')}
+            style={{ fontSize: 13, padding: '6px 10px', borderRadius: 6, background: '#eef4ef', color: '#2d6a4f', fontWeight: 700 }}
+          >
+            날짜 전체
+          </button>
+        )}
+      </div>
+
+      {!rows.length ? (
+        <div style={{ padding: 32, textAlign: 'center', color: '#888', fontSize: 16 }}>
+          스마트폰에 저장된 자료가 없습니다.
+        </div>
+      ) : (
+        tableData.map(({ group, treeData, completedCount }) => (
+          <div key={group} style={{ marginBottom: 4 }}>
+            <div style={{ background: '#e8f4ed', padding: '7px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #c8dfd0' }}>
+              <strong style={{ fontSize: 14, color: '#1b4332' }}>{group}</strong>
+              <span style={{ fontSize: 13, color: '#2d6a4f', fontWeight: 800 }}>{completedCount}/10 완료</span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#f9fbf8' }}>
+                    <th style={{ padding: '5px 8px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 800, color: '#314438' }}>수목</th>
+                    <th style={{ padding: '5px 6px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 800, color: '#314438' }}>줄기</th>
+                    <th style={{ padding: '5px 6px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 800, color: '#314438' }}>pH</th>
+                    <th style={{ padding: '5px 6px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 800, color: '#314438' }}>습도</th>
+                    <th style={{ padding: '5px 6px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 800, color: '#314438' }}>온도</th>
+                    <th style={{ padding: '5px 6px', textAlign: 'center', borderBottom: '1px solid #e0e0e0', fontWeight: 800, color: '#314438' }}>상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {treeData.map(({ treeId, hasDiameter, hasPH, hasHumidity, hasTemp, status }) => {
+                    const serial = treeId.split('-').pop()
+                    return (
+                      <tr key={treeId} style={{ background: rowBg(status), borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '5px 8px', fontWeight: 700, color: '#333', fontSize: 13 }}>
+                          {LIST_GROUP_SHORT[group] ?? ''}-{serial}
+                        </td>
+                        <td style={cellStyle(hasDiameter)}>{hasDiameter ? '✅' : '○'}</td>
+                        <td style={cellStyle(hasPH)}>{hasPH ? '✅' : '○'}</td>
+                        <td style={cellStyle(hasHumidity)}>{hasHumidity ? '✅' : '○'}</td>
+                        <td style={cellStyle(hasTemp)}>{hasTemp ? '✅' : '○'}</td>
+                        <td style={{ padding: '5px 4px', textAlign: 'center', fontSize: 11, fontWeight: 800, color: status === '완료' ? '#2d6a4f' : status === '일부' ? '#b45309' : '#9e9e9e' }}>
+                          {status}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   )
 }

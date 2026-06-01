@@ -9,6 +9,8 @@ export default function ResearchScreen({ onBack }) {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [sourceInfo, setSourceInfo] = useState('')
+  const [viewMode, setViewMode] = useState('chart') // 'chart' | 'list'
+  const [showOnlyMissing, setShowOnlyMissing] = useState(false)
   const [filters, setFilters] = useState({
     participantId: ALL,
     treeGroup: ALL,
@@ -27,13 +29,9 @@ export default function ResearchScreen({ onBack }) {
     setMessage('')
     try {
       const pcData = await loadPcExportRows()
-      const appData = await makeResearchDatabaseCsv()
-      const mergedRows = normalizeResearchRows([...pcData.rows, ...appData.rows])
-      setRows(mergedRows)
-      setSourceInfo(
-        `PC 저장자료 ${pcData.files.length}개 파일, ${pcData.rows.length}건 · ` +
-        `앱 임시자료 ${appData.rows.length}건 · 통합 ${mergedRows.length}건`
-      )
+      const normalizedRows = normalizeResearchRows(pcData.rows)
+      setRows(normalizedRows)
+      setSourceInfo(`PC 저장자료 ${pcData.files.length}개 파일, ${normalizedRows.length}건 (앱 임시자료 미포함)`)
     } catch (err) {
       console.error('[연구 앱 로드 실패]', err)
       setMessage('연구 데이터를 불러오지 못했습니다.')
@@ -99,6 +97,60 @@ export default function ResearchScreen({ onBack }) {
     () => makeGrowthTemperatureComparison(filteredRows),
     [filteredRows],
   )
+
+  const checklistData = useMemo(() => {
+    const groups = filters.treeGroup === ALL ? TREE_GROUP_OPTIONS : [filters.treeGroup]
+    const result = []
+    for (const group of groups) {
+      const groupRows = filteredRows.filter(r => normalizeTreeGroup(r.수목구분) === group)
+      const prefix = group.includes('2년') ? '케이싱2년' : (group.includes('직수') || group.includes('대조')) ? '대조수목' : '케이싱1년'
+      for (let i = 1; i <= 10; i++) {
+        const serial = String(i).padStart(2, '0')
+        const treeId = `${prefix}-${serial}`
+        const treeRows = groupRows.filter(r => normalizeTreeId(r.수목ID, group) === treeId)
+        const hasDiameter = treeRows.some(r => Number(r.줄기직경mm) > 0 || Number(r.캘리퍼스직경mm) > 0 || Number(r.흉고직경mm) > 0)
+        const hasPH = treeRows.some(r => Number(r.토양PH) > 0)
+        const hasHumidity = treeRows.some(r => Number(r.토양수분) > 0)
+        const hasTemp = treeRows.some(r => Number(r.토양온도) > 0)
+        const count = [hasDiameter, hasPH, hasHumidity, hasTemp].filter(Boolean).length
+        const status = count === 4 ? '완료' : count > 0 ? '일부' : '누락'
+        result.push({ group, treeId, serial, status, hasDiameter, hasPH, hasHumidity, hasTemp, count })
+      }
+    }
+    return result
+  }, [filteredRows, filters.treeGroup])
+
+  const overallCompletionRate = useMemo(() => {
+    if (!checklistData.length) return 0
+    const completed = checklistData.filter(d => d.status === '완료').length
+    return Math.round(completed / checklistData.length * 100)
+  }, [checklistData])
+
+  const participantCompletionRates = useMemo(() => {
+    const pIds = unique(filteredRows.map(r => r.참여자ID).filter(Boolean))
+    return pIds.map(pid => {
+      const pRows = filteredRows.filter(r => r.참여자ID === pid)
+      let total = 0, completed = 0
+      const groups = filters.treeGroup === ALL ? TREE_GROUP_OPTIONS : [filters.treeGroup]
+      for (const group of groups) {
+        const groupRows = pRows.filter(r => normalizeTreeGroup(r.수목구분) === group)
+        const prefix = group.includes('2년') ? '케이싱2년' : (group.includes('직수') || group.includes('대조')) ? '대조수목' : '케이싱1년'
+        for (let i = 1; i <= 10; i++) {
+          const serial = String(i).padStart(2, '0')
+          const treeId = `${prefix}-${serial}`
+          const treeRows = groupRows.filter(r => normalizeTreeId(r.수목ID, group) === treeId)
+          if (!treeRows.length) continue
+          total++
+          const hasDiameter = treeRows.some(r => Number(r.줄기직경mm) > 0 || Number(r.캘리퍼스직경mm) > 0 || Number(r.흉고직경mm) > 0)
+          const hasPH = treeRows.some(r => Number(r.토양PH) > 0)
+          const hasHumidity = treeRows.some(r => Number(r.토양수분) > 0)
+          const hasTemp = treeRows.some(r => Number(r.토양온도) > 0)
+          if ([hasDiameter, hasPH, hasHumidity, hasTemp].every(Boolean)) completed++
+        }
+      }
+      return { participantId: pid, total, completed, rate: total > 0 ? Math.round(completed / total * 100) : 0 }
+    })
+  }, [filteredRows, filters.treeGroup])
 
   const showDataList = filters.treeGroup !== ALL || filters.treeId !== ALL || filters.participantId !== ALL || filters.eventNote !== ALL
 
@@ -187,7 +239,7 @@ export default function ResearchScreen({ onBack }) {
         <button className={styles.backBtn} onClick={onBack}>&larr; 뒤로</button>
         <div>
           <h1>연구 앱</h1>
-          <p>PC 저장자료 기준 변화량 확인</p>
+          <p>PC 저장자료만 기준</p>
         </div>
         <button className={styles.refreshBtn} onClick={loadRows}>새로고침</button>
       </header>
@@ -224,6 +276,21 @@ export default function ResearchScreen({ onBack }) {
             <SummaryCard label="이미지" value={summary.imageCount} />
           </section>
 
+          <div className={styles.viewToggle}>
+            <button
+              className={viewMode === 'chart' ? styles.viewToggleActive : styles.viewToggleBtn}
+              onClick={() => setViewMode('chart')}
+            >
+              차트
+            </button>
+            <button
+              className={viewMode === 'list' ? styles.viewToggleActive : styles.viewToggleBtn}
+              onClick={() => setViewMode('list')}
+            >
+              목록
+            </button>
+          </div>
+
           <section className={styles.filterPanel}>
             <div className={styles.filterHeader}>
               <strong>자료 걸러보기</strong>
@@ -241,6 +308,16 @@ export default function ResearchScreen({ onBack }) {
 
           {message && <p className={styles.message}>{message}</p>}
 
+          <ChecklistPanel
+            data={checklistData}
+            showOnlyMissing={showOnlyMissing}
+            onToggleMissing={() => setShowOnlyMissing(prev => !prev)}
+            overallCompletionRate={overallCompletionRate}
+            participantRates={participantCompletionRates}
+          />
+
+          {viewMode === 'chart' ? (
+            <>
           <section className={styles.twoColumns}>
             <SummaryTable title="참여자별 자료 수" rows={participantSummary} />
             <SummaryTable title="수목구분별 자료 수" rows={treeSummary} />
@@ -256,16 +333,16 @@ export default function ResearchScreen({ onBack }) {
           <ErrorRateChart rows={errorSeries} />
 
           <GrowthTemperatureChart data={growthTemperatureComparison} />
-
-          {showDataList && (
+            </>
+          ) : (
             <section className={styles.listPanel}>
               <div className={styles.listHeader}>
-                <strong>최근 자료</strong>
+                <strong>자료 목록</strong>
                 <span>{filteredRows.length}건</span>
               </div>
               {filteredRows.length ? (
                 <div className={styles.rowList}>
-                  {filteredRows.slice().reverse().slice(0, 40).map(row => (
+                  {filteredRows.slice().reverse().slice(0, 100).map(row => (
                     <article className={styles.dataRow} key={row.event_id}>
                       <div className={styles.rowTop}>
                         <strong>{row.참여자ID || '미지정'} · {row.수목구분 || '수목구분 없음'}</strong>
@@ -289,6 +366,98 @@ export default function ResearchScreen({ onBack }) {
         </main>
       )}
     </div>
+  )
+}
+
+function ChecklistPanel({ data, showOnlyMissing, onToggleMissing, overallCompletionRate, participantRates }) {
+  const displayData = showOnlyMissing ? data.filter(d => d.status !== '완료') : data
+  const groups = [...new Set(data.map(d => d.group))]
+  const groupShort = { '케이싱 1년': '1년', '케이싱 2년': '2년', '직수수목(대조수목)': '대조' }
+  const statusColor = { '완료': '#e8f5e9', '일부': '#fff8e1', '누락': '#fafafa' }
+  const statusTextColor = { '완료': '#2d6a4f', '일부': '#b45309', '누락': '#9e9e9e' }
+
+  return (
+    <section className={styles.checklistPanel}>
+      <div className={styles.checklistHeader}>
+        <h2>입력 확인 체크리스트</h2>
+        <button className={styles.checklistToggleBtn} onClick={onToggleMissing}>
+          {showOnlyMissing ? '전체 보기' : '누락만 보기'}
+        </button>
+      </div>
+
+      <div className={styles.completionBarWrap}>
+        <div className={styles.completionBarLabel}>
+          <span>전체 완료율</span>
+          <strong>{overallCompletionRate}%</strong>
+          <em>({data.filter(d => d.status === '완료').length}/{data.length})</em>
+        </div>
+        <div className={styles.completionBarTrack}>
+          <div className={styles.completionBarFill} style={{ width: `${overallCompletionRate}%` }} />
+        </div>
+      </div>
+
+      {participantRates.length > 0 && (
+        <div className={styles.participantRateList}>
+          {participantRates.map(p => (
+            <div key={p.participantId} className={styles.participantRateRow}>
+              <span className={styles.participantRateId}>{p.participantId}</span>
+              <div className={styles.participantRateBarTrack}>
+                <div className={styles.participantRateBarFill} style={{ width: `${p.rate}%` }} />
+              </div>
+              <strong className={styles.participantRateNum}>{p.rate}%</strong>
+              <em className={styles.participantRateCount}>{p.completed}/{p.total}</em>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {groups.map(group => {
+        const groupData = displayData.filter(d => d.group === group)
+        if (!groupData.length) return null
+        const groupTotal = data.filter(d => d.group === group)
+        const groupCompleted = groupTotal.filter(d => d.status === '완료').length
+        return (
+          <div key={group} className={styles.checklistGroup}>
+            <div className={styles.checklistGroupHeader}>
+              <span>{group}</span>
+              <em>{groupCompleted}/{groupTotal.length}</em>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className={styles.checklistTable}>
+                <thead>
+                  <tr>
+                    <th>수목</th>
+                    <th>줄기</th>
+                    <th>pH</th>
+                    <th>습도</th>
+                    <th>온도</th>
+                    <th>상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupData.map(d => (
+                    <tr key={d.treeId} style={{ background: statusColor[d.status] }}>
+                      <td className={styles.checklistTreeId}>{groupShort[group] ?? ''}-{d.serial}</td>
+                      <td className={styles.checklistCell}>{d.hasDiameter ? '✅' : '○'}</td>
+                      <td className={styles.checklistCell}>{d.hasPH ? '✅' : '○'}</td>
+                      <td className={styles.checklistCell}>{d.hasHumidity ? '✅' : '○'}</td>
+                      <td className={styles.checklistCell}>{d.hasTemp ? '✅' : '○'}</td>
+                      <td className={styles.checklistCell} style={{ color: statusTextColor[d.status], fontWeight: 800 }}>{d.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })}
+
+      {!displayData.length && (
+        <div className={styles.emptyBox}>
+          {showOnlyMissing ? '누락 항목이 없습니다.' : '체크리스트 데이터가 없습니다.'}
+        </div>
+      )}
+    </section>
   )
 }
 
