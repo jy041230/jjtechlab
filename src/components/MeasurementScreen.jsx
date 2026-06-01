@@ -27,6 +27,7 @@ import {
   clearResearchDatabase,
   findLatestCaliperDiameter,
   getResearchDatabaseRows,
+  getCaliperValuesByTreeIds,
 } from '../utils/db'
 import { parseExcelSoil } from '../utils/excelParser'
 import LiveCamera     from './LiveCamera'
@@ -183,8 +184,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const excelFileRef = useRef(null)
   const soilPhotoFileRef = useRef(null)
   const journalPhotoFileRef = useRef(null)
-  const caliperCameraFileRef = useRef(null)
-  const caliperPhotoFileRef = useRef(null)
   const phoneBackupFileRef = useRef(null)
   const researchDbTextRef = useRef(null)
   const cameraMethodFileRef = useRef(null)
@@ -193,8 +192,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const pointsRef = useRef([])
   const pixelPerMmRef = useRef(0)
   const [journalPhoto, setJournalPhoto] = useState(null)
-  const [caliperPhoto, setCaliperPhoto] = useState(null)
   const [caliperDirectMm, setCaliperDirectMm] = useState('')
+  const [caliperStatusMap, setCaliperStatusMap] = useState({})
   const [researchDb, setResearchDb] = useState(null)
   const [researchMeta, setResearchMeta] = useState(loadResearchMeta)
   const [caliperMm, setCaliperMm] = useState('')
@@ -239,6 +238,15 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       setResearchMeta(prev => ({ ...prev, treeGroup, treeId: options[0] }))
     }
   }, [researchMeta.treeGroup, researchMeta.treeId])
+
+  useEffect(() => {
+    if (phase !== PHASE.CALIPER_INPUT) return
+    const treeGroup = normalizeTreeGroup(researchMeta.treeGroup)
+    const treeIds = getTreeIdOptions(treeGroup)
+    getCaliperValuesByTreeIds(treeIds)
+      .then(map => setCaliperStatusMap(map))
+      .catch(err => console.error('[캘리퍼스 상태 조회 실패]', err))
+  }, [phase, researchMeta.treeGroup])
 
   function updateResearchMeta(key, value) {
     if (key === 'treeGroup') {
@@ -308,7 +316,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setSoilValues({})
     setCaliperMm('')
     setCaliperDirectMm('')
-    setCaliperPhoto(null)
     setResearchDb(null)
     setCaliperSource(null)
     setListRows([])
@@ -322,7 +329,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     if (t.usesCamera) {
       setPhase(PHASE.CAMERA_METHOD)
     } else if (t.usesCaliper) {
-      setCaliperPhoto(null)
       setCaliperDirectMm('')
       setPhase(PHASE.CALIPER_INPUT)
     } else if (t.usesSoilMeasure) {
@@ -546,30 +552,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setTimeout(() => setPhase(PHASE.IDLE), 2000)
   }
 
-  // ── 캘리퍼스 LCD 사진 + 직접 입력 ─────────────────────────────────────────
-
-  async function handleCaliperPhotoFileChange(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    const dataUrl = await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result)
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-    setCaliperPhoto(dataUrl)
-    setPhase(PHASE.CALIPER_INPUT)
-  }
-
-  function handleCaliperCameraRequest() {
-    caliperCameraFileRef.current.value = ''
-    caliperCameraFileRef.current.click()
-  }
-
-  function handleCaliperPhotoRequest() {
-    caliperPhotoFileRef.current.value = ''
-    caliperPhotoFileRef.current.click()
-  }
+  // ── 캘리퍼스 직접 입력 ────────────────────────────────────────────────────
 
   async function handleCaliperSave() {
     const value = Number(caliperDirectMm)
@@ -583,7 +566,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         mm:               value,
         validationStatus: true,
         pixelPerMm:       null,
-        imageDataUrl:     caliperPhoto,
+        imageDataUrl:     null,
         meta:             getResearchMeta(),
       })
       await autoSubmitSavedEvents(eventId)
@@ -592,14 +575,15 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       alert('캘리퍼스 값을 저장하지 못했습니다.')
       return
     }
-    setCaliperPhoto(null)
     setCaliperDirectMm('')
-    setPhase(PHASE.CONFIRMED)
-    setTimeout(() => setPhase(PHASE.IDLE), 2000)
+    const treeGroup = normalizeTreeGroup(researchMeta.treeGroup)
+    const treeIds = getTreeIdOptions(treeGroup)
+    getCaliperValuesByTreeIds(treeIds)
+      .then(map => setCaliperStatusMap(map))
+      .catch(() => {})
   }
 
   function handleCaliperBack() {
-    setCaliperPhoto(null)
     setCaliperDirectMm('')
     setPhase(PHASE.IDLE)
   }
@@ -1494,31 +1478,36 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           />
         )}
 
-        {/* 캘리퍼스 LCD 사진 + 직접 입력 */}
+        {/* 캘리퍼스 직접 입력 */}
         {isCaliperScreen && (
           <div className={styles.caliperPanel}>
-            <div className={styles.caliperMetaBadge}>
-              <strong>{getResearchMeta().treeId}</strong>
-              <span>{getResearchMeta().treeGroup} · {getResearchMeta().participantId}</span>
+            <div className={styles.caliperSelects}>
+              <label className={styles.caliperSelectLabel}>
+                수목구분
+                <select
+                  value={researchMeta.treeGroup}
+                  onChange={e => updateResearchMeta('treeGroup', e.target.value)}
+                >
+                  <option>케이싱 1년</option>
+                  <option>케이싱 2년</option>
+                  <option>직수수목(대조수목)</option>
+                </select>
+              </label>
+              <label className={styles.caliperSelectLabel}>
+                수목ID
+                <select
+                  value={researchMeta.treeId}
+                  onChange={e => updateResearchMeta('treeId', e.target.value)}
+                >
+                  {getTreeIdOptions(researchMeta.treeGroup).map(tid => <option key={tid}>{tid}</option>)}
+                </select>
+              </label>
             </div>
-            <div className={styles.caliperPhotoBox}>
-              {caliperPhoto ? (
-                <img src={caliperPhoto} className={styles.caliperPhoto} alt="캘리퍼스 LCD 사진" />
-              ) : (
-                <div className={styles.caliperEmpty}>
-                  <span>📏</span>
-                  <p>캘리퍼스 LCD가 보이도록 사진을 남긴 뒤 값을 입력하세요.</p>
-                </div>
-              )}
-            </div>
-            <div className={styles.caliperActions}>
-              <button className={styles.journalSecondaryBtn} onClick={handleCaliperCameraRequest}>
-                촬영
-              </button>
-              <button className={styles.journalSecondaryBtn} onClick={handleCaliperPhotoRequest}>
-                사진 불러오기
-              </button>
-            </div>
+            {caliperStatusMap[researchMeta.treeId] != null && (
+              <div className={styles.caliperExistingValue}>
+                저장된 값: <strong>{Number(caliperStatusMap[researchMeta.treeId]).toFixed(2)} mm</strong>
+              </div>
+            )}
             <label className={styles.caliperDirectInput}>
               캘리퍼스 측정값
               <div>
@@ -1532,12 +1521,28 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
                 <span>mm</span>
               </div>
             </label>
-            <p className={styles.caliperGuide}>
-              LCD 사진은 증거자료로 남기고, 현재 단계에서는 값을 직접 입력합니다. OCR 판독은 이후 확장 기능으로 붙일 수 있습니다.
-            </p>
             <button className={styles.caliperSaveBtn} onClick={handleCaliperSave}>
               저장
             </button>
+            <div className={styles.caliperStatusList}>
+              <p className={styles.caliperStatusTitle}>측정 현황 — {normalizeTreeGroup(researchMeta.treeGroup)}</p>
+              {getTreeIdOptions(researchMeta.treeGroup).map(tid => {
+                const val = caliperStatusMap[tid]
+                const isSelected = researchMeta.treeId === tid
+                return (
+                  <button
+                    key={tid}
+                    className={`${styles.caliperStatusRow}${isSelected ? ` ${styles.caliperStatusRowActive}` : ''}`}
+                    onClick={() => updateResearchMeta('treeId', tid)}
+                  >
+                    <span className={styles.caliperStatusId}>{tid}</span>
+                    <span className={val != null ? styles.caliperStatusValue : styles.caliperStatusMissing}>
+                      {val != null ? `${Number(val).toFixed(2)} mm` : '누락'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )}
 
@@ -1596,21 +1601,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         ref={journalPhotoFileRef}
         style={{ display: 'none' }}
         onChange={handleJournalPhotoFileChange}
-      />
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        ref={caliperCameraFileRef}
-        style={{ display: 'none' }}
-        onChange={handleCaliperPhotoFileChange}
-      />
-      <input
-        type="file"
-        accept="image/*"
-        ref={caliperPhotoFileRef}
-        style={{ display: 'none' }}
-        onChange={handleCaliperPhotoFileChange}
       />
       <input
         type="file"

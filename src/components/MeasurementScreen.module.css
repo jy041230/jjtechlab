@@ -1060,28 +1060,106 @@
   overflow-y: auto;
 }
 
-.caliperMetaBadge {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.caliperSelects {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.caliperSelectLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-text-secondary);
+}
+
+.caliperSelectLabel select {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 2px solid #b7d2bf;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.caliperExistingValue {
   padding: 12px 14px;
-  border-radius: 14px;
   background: #eaf4ee;
-  border: 1px solid #b7d2bf;
+  border: 1px solid #74c88a;
+  border-radius: 12px;
+  font-size: 18px;
   color: #1b4332;
 }
 
-.caliperMetaBadge strong {
+.caliperExistingValue strong {
   font-size: 22px;
   font-weight: 900;
+  color: #1a5c38;
 }
 
-.caliperMetaBadge span {
+.caliperStatusList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid #d0e6d8;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.caliperStatusTitle {
+  margin: 0;
+  padding: 10px 14px;
+  background: #eef6f1;
   font-size: 15px;
   font-weight: 800;
-  color: #43624f;
-  text-align: right;
+  color: #1b4332;
+  border-bottom: 1px solid #d0e6d8;
+}
+
+.caliperStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid #eef3f0;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.caliperStatusRow:last-child {
+  border-bottom: none;
+}
+
+.caliperStatusRow:active {
+  background: #f0f8f3;
+}
+
+.caliperStatusRowActive {
+  background: #e8f5e9;
+}
+
+.caliperStatusId {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.caliperStatusValue {
+  font-weight: 800;
+  color: #2d6a4f;
+}
+
+.caliperStatusMissing {
+  font-weight: 600;
+  color: #9e9e9e;
 }
 
 .targetBadge {
@@ -1108,51 +1186,6 @@
   font-weight: 800;
   color: #43624f;
   text-align: right;
-}
-
-.caliperPhotoBox {
-  width: 100%;
-  min-height: 190px;
-  max-height: 280px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #1b1b1b;
-  border: 1px solid #d9e5dc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.caliperPhoto {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-.caliperEmpty {
-  padding: 22px;
-  color: #fff;
-  text-align: center;
-}
-
-.caliperEmpty span {
-  display: block;
-  font-size: 56px;
-  margin-bottom: 10px;
-}
-
-.caliperEmpty p {
-  margin: 0;
-  font-size: 19px;
-  line-height: 1.45;
-  font-weight: 800;
-}
-
-.caliperActions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
 }
 
 .caliperDirectInput {
@@ -1189,17 +1222,6 @@
 .caliperDirectInput span {
   font-size: 24px;
   color: var(--color-text-secondary);
-}
-
-.caliperGuide {
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: #fff7e6;
-  color: #6b4e00;
-  font-size: 16px;
-  line-height: 1.45;
-  font-weight: 700;
 }
 
 .caliperSaveBtn {

@@ -587,6 +587,38 @@ export async function clearResearchDatabase() {
   return true
 }
 
+export async function getCaliperValuesByTreeIds(treeIds) {
+  if (!treeIds?.length) return {}
+  const db = await openDB()
+  const events = await txGetAll(db, 'event_units')
+  const measurements = await txGetAll(db, 'measurement_data')
+
+  const eventTimestampMap = new Map(events.map(e => [e.event_id, e.timestamp]))
+  const treeEventMap = new Map()
+  for (const event of events) {
+    const tid = event.tree_id
+    if (!treeIds.includes(tid)) continue
+    const list = treeEventMap.get(tid) ?? []
+    list.push(event.event_id)
+    treeEventMap.set(tid, list)
+  }
+
+  const caliperMeasurements = measurements.filter(m => m.measurement_type === '캘리퍼스직경')
+
+  const result = {}
+  for (const treeId of treeIds) {
+    const eventIds = new Set(treeEventMap.get(treeId) ?? [])
+    const treeCalipers = caliperMeasurements.filter(m => eventIds.has(m.event_id))
+    if (!treeCalipers.length) continue
+    treeCalipers.sort((a, b) =>
+      (eventTimestampMap.get(b.event_id) ?? '').localeCompare(eventTimestampMap.get(a.event_id) ?? '')
+    )
+    result[treeId] = Number(treeCalipers[0].measurement_value) || null
+  }
+
+  return result
+}
+
 export async function findLatestCaliperDiameter(treeId) {
   if (!treeId) return null
   const db = await openDB()
