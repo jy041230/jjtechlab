@@ -9,7 +9,7 @@
  *   토양측정:          SOIL_LIVE → SOIL_INPUT → CONFIRMED
  *   수고:              HEIGHT_TODO
  */
-export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onRegisterBack }) {
+
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useCamera }        from '../hooks/useCamera'
 import { useVoice }         from '../hooks/useVoice'
@@ -36,6 +36,8 @@ import FrozenMeasure  from './FrozenMeasure'
 import SoilInputPanel from './SoilInputPanel'
 import VoiceScreen    from './VoiceScreen'
 import styles from './MeasurementScreen.module.css'
+
+export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onRegisterBack }) {
 
 // ── 측정 유형 ─────────────────────────────────────────────────────────────────
 const MEASUREMENT_TYPES = [
