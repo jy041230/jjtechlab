@@ -5,15 +5,7 @@
  * ID 0 비트 패턴 (행-우선 MSB): 1011 0101 0011 0010 = 0xB532.
  */
 
-import * as jsArucoModule from 'js-aruco2'
-
-const jsAruco = jsArucoModule.default ?? jsArucoModule
-const AR = jsAruco.AR ?? jsAruco
-
-if (!AR || !AR.DICTIONARIES) {
-  console.error('[ArUco] AR 객체 로드 실패:', jsArucoModule)
-}
-
+import AR from 'js-aruco2/src/aruco.js'
 
 
 const MARKER_REAL_MM = 40   // 물리 마커 한 변 40mm
