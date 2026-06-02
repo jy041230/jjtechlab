@@ -7,6 +7,7 @@
  *   voice_data        — 음성 전사 (event_id FK)
  *   visual_data       — 이미지·세그멘테이션 (event_id FK)
  */
+import { sendToSheet } from './sheetSync.js'
 
 const DB_NAME    = 'plum-measure-db'
 const DB_VERSION = 1
@@ -210,7 +211,21 @@ export async function saveDiameterMeasurement({ typeId, mm, validationStatus, pi
       })
     }
   }
-
+  const caliperMmNum = Number(meta.caliperMm)
+  const absErr = Number.isFinite(caliperMmNum) && caliperMmNum > 0 ? Math.abs(parseFloat(mm.toFixed(2)) - caliperMmNum) : ''
+  sendToSheet({
+    type: 'stem',
+    participantId: meta.participantId ?? '',
+    treeId: meta.treeId ?? '',
+    treeType: meta.treeGroup ?? '',
+    cameraMm: parseFloat(mm.toFixed(2)),
+    caliperMm: Number.isFinite(caliperMmNum) ? caliperMmNum : '',
+    absError: absErr === '' ? '' : parseFloat(absErr.toFixed(2)),
+    errorRate: (absErr !== '' && caliperMmNum > 0) ? parseFloat((absErr / caliperMmNum * 100).toFixed(2)) : '',
+    pxPerMm: pixelPerMm ?? '',
+    photo: imageDataUrl ?? '',
+    photoName: `stem_${meta.treeId ?? 'x'}_${Date.now()}`,
+  })
   return eventId
 }
 
@@ -260,7 +275,20 @@ export async function saveSoilMeasurements(records, meta = {}, imageDataUrl = nu
       timestamp,
     })
   }
-
+const soilMap = {}
+  for (const rec of records) soilMap[rec.measurement_type] = rec.measurement_value
+  sendToSheet({
+    type: 'soil',
+    participantId: meta.participantId ?? '',
+    treeId: meta.treeId ?? '',
+    ph: soilMap['토양PH'] ?? '',
+    moisture: soilMap['토양수분'] ?? '',
+    temp: soilMap['토양온도'] ?? '',
+    fertility: soilMap['비옥도'] ?? '',
+    sunlight: soilMap['일조'] ?? '',
+    photo: imageDataUrl ?? '',
+    photoName: `soil_${meta.treeId ?? 'x'}_${Date.now()}`,
+  })
   return event_id
 }
 
@@ -307,7 +335,16 @@ export async function saveJournalEntry({ transcript_text, confidence, imageDataU
       timestamp,
     })
   }
-
+sendToSheet({
+    type: 'work',
+    participantId: meta.participantId ?? '',
+    scope: meta.scope ?? meta.treeId ?? '전체',
+    workType: meta.workType ?? '',
+    voiceText: transcript_text ?? '',
+    note: meta.note ?? '',
+    photo: imageDataUrl ?? '',
+    photoName: `work_${Date.now()}`,
+  })
   return event_id
 }
 
