@@ -10,11 +10,10 @@
   display: none;
 }
 
-/* 라이브 영상: 가로폭 꽉 채움 */
 .video {
   width: 100%;
   height: 100%;
-  object-fit: cover;   /* 꽉 채우기 — 좌표 변환 불필요(캡처는 full-res canvas) */
+  object-fit: cover;
   display: block;
 }
 
@@ -110,6 +109,14 @@
   pointer-events: none;
   backdrop-filter: blur(4px);
   z-index: 10;
+  transition: background 0.3s;
+}
+
+/* 마커 감지 시 힌트 — 초록 배경 */
+.hintReady {
+  background: rgba(0, 200, 117, 0.88);
+  color: #fff;
+  animation: blink 1.2s ease-in-out infinite;
 }
 
 /* 셔터 버튼 — iOS Camera 스타일 */
@@ -131,9 +138,23 @@
   padding: 0;
   backdrop-filter: blur(4px);
   z-index: 15;
+  transition: opacity 0.3s, box-shadow 0.3s;
 }
 
 .shutter:active { transform: translateX(-50%) scale(0.92); }
+
+/* 마커 감지 전 — 셔터 비활성 */
+.shutterWaiting {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* 마커 감지 후 — 셔터 활성 (초록 링 펄스) */
+.shutterReady {
+  opacity: 1;
+  box-shadow: 0 0 0 4px #00ff88;
+  animation: pulse 1.2s ease-in-out infinite;
+}
 
 .shutterInner {
   width: 56px;
@@ -162,4 +183,14 @@
   padding: 0;
   backdrop-filter: blur(4px);
   z-index: 16;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 4px #00ff88; }
+  50%       { box-shadow: 0 0 0 10px rgba(0, 255, 136, 0.25); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.75; }
 }

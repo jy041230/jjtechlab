@@ -6,15 +6,15 @@
  *   - MIN_SIDE_PX(60) 미만 마커는 노이즈로 제거 (Python: _MIN_VALID_SIDE_PX)
  *   - 여러 마커 검출 시 가장 큰(가까운) 마커 사용
  *
- * [변경] detecting 단계에서 마커가 감지되면 "탭하여 촬영" 버튼 활성화
- *        onCapture 콜백이 전달된 경우에만 버튼 표시
+ * js-aruco2 라이브러리: OpenCV DICT_4X4_50과 동일한 비트 패턴을 사용하는
+ * 순수 JS 구현. OpenCV.js aruco 모듈의 브라우저 대체재.
  */
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import styles from './CameraView.module.css'
 
-const MARKER_REAL_MM = 40
-const MIN_SIDE_PX    = 60
-const DETECT_INTERVAL_MS = 120
+const MARKER_REAL_MM = 40   // 물리 마커 한 변 40mm
+const MIN_SIDE_PX    = 60   // 최소 유효 마커 변 길이 (노이즈 차단)
+const DETECT_INTERVAL_MS = 120  // 검출 주기 ~8fps (모바일 CPU 보호)
 
 // ── ArUco 검출기 싱글턴 ──────────────────────────────────────────────────────
 let _detector = null
@@ -25,6 +25,7 @@ async function getDetector() {
   if (_detector)       return _detector
   if (_detectorError)  throw new Error(_detectorError)
   if (_detectorLoading) {
+    // 다른 호출이 로딩 중이면 완료까지 대기
     await new Promise(r => setTimeout(r, 500))
     return getDetector()
   }
@@ -32,11 +33,13 @@ async function getDetector() {
   _detectorLoading = true
   try {
     const mod = await import('js-aruco2')
+    // js-aruco2 export 형태 유연하게 처리
     const AR = mod.AR ?? mod.default?.AR
     const Detector = AR?.Detector ?? mod.Detector ?? mod.default
 
     if (!Detector) throw new Error('Detector 클래스를 찾을 수 없습니다')
 
+    // DICT_4X4_50 우선, 지원 안 되면 기본 ARUCO dict 사용
     try {
       _detector = new Detector({ dictionary: '4X4_50' })
     } catch {
@@ -52,7 +55,7 @@ async function getDetector() {
   }
 }
 
-// ── 4변 평균 픽셀 길이 ───────────────────────────────────────────────────────
+// ── 4변 평균 픽셀 길이 (Python: _side_length_px) ─────────────────────────────
 function avgSidePx(corners) {
   let total = 0
   for (let i = 0; i < 4; i++) {
@@ -97,6 +100,7 @@ function drawOverlay(canvas, videoW, videoH, markerCorners, points, pixelPerMm) 
     y: offsetY + (vy / videoH) * displayH,
   })
 
+  // ArUco 마커 박스
   if (markerCorners?.length === 4) {
     const pts = markerCorners.map(c => toDisp(c.x, c.y))
     ctx.beginPath()
@@ -113,6 +117,7 @@ function drawOverlay(canvas, videoW, videoH, markerCorners, points, pixelPerMm) 
       ctx.fillStyle = '#00ff88'
       ctx.fill()
     })
+    // 레이블
     const cx = pts.reduce((s, p) => s + p.x, 0) / 4
     const cy = pts.reduce((s, p) => s + p.y, 0) / 4
     ctx.font      = 'bold 13px sans-serif'
@@ -121,21 +126,25 @@ function drawOverlay(canvas, videoW, videoH, markerCorners, points, pixelPerMm) 
     ctx.fillText(`ArUco 40mm`, cx, cy + 5)
   }
 
+  // 측정 점 & 선
   if (points.length > 0 && pixelPerMm > 0) {
     const dispPts = points.map(p => toDisp(p.x, p.y))
 
     dispPts.forEach((p, i) => {
+      // 십자선
       ctx.strokeStyle = '#ff6b35'
       ctx.lineWidth   = 2.5
       ctx.beginPath()
       ctx.moveTo(p.x - 18, p.y); ctx.lineTo(p.x + 18, p.y)
       ctx.moveTo(p.x, p.y - 18); ctx.lineTo(p.x, p.y + 18)
       ctx.stroke()
+      // 원
       ctx.beginPath()
       ctx.arc(p.x, p.y, 11, 0, Math.PI * 2)
       ctx.strokeStyle = '#ff6b35'
       ctx.lineWidth   = 3
       ctx.stroke()
+      // 레이블
       ctx.font      = 'bold 15px sans-serif'
       ctx.fillStyle = '#ffffff'
       ctx.textAlign = 'center'
@@ -143,6 +152,7 @@ function drawOverlay(canvas, videoW, videoH, markerCorners, points, pixelPerMm) 
     })
 
     if (dispPts.length === 2) {
+      // 측정선
       ctx.beginPath()
       ctx.moveTo(dispPts[0].x, dispPts[0].y)
       ctx.lineTo(dispPts[1].x, dispPts[1].y)
@@ -152,6 +162,7 @@ function drawOverlay(canvas, videoW, videoH, markerCorners, points, pixelPerMm) 
       ctx.stroke()
       ctx.setLineDash([])
 
+      // 중간 거리 레이블
       const midX   = (dispPts[0].x + dispPts[1].x) / 2
       const midY   = (dispPts[0].y + dispPts[1].y) / 2
       const pxDist = Math.sqrt(
@@ -173,17 +184,13 @@ export default function CameraView({
   points,          // [{x,y}] in video coords (max 2)
   onMarkerUpdate,  // (markerState) => void
   onTap,           // ({x,y} in video coords) => void
-  onCapture,       // () => void — 마커 감지 후 촬영 버튼 탭 시 호출 (optional)
 }) {
-  const videoRef      = useRef(null)
-  const overlayRef    = useRef(null)
-  const rafRef        = useRef(null)
+  const videoRef     = useRef(null)
+  const overlayRef   = useRef(null)
+  const rafRef       = useRef(null)
   const lastDetectRef = useRef(0)
-  const markerRef     = useRef({ found: false, pixelPerMm: 0, corners: null })
-  const offCanvasRef  = useRef(null)
-
-  // 마커 감지 상태 (UI 반응용)
-  const [markerFound, setMarkerFound] = useState(false)
+  const markerRef    = useRef({ found: false, pixelPerMm: 0, corners: null })
+  const offCanvasRef = useRef(null) // 오프스크린 캔버스 (검출용)
 
   // 스트림 연결
   useEffect(() => {
@@ -215,6 +222,7 @@ export default function CameraView({
     const vh = video.videoHeight
     if (!vw || !vh) return
 
+    // 오버레이 캔버스 크기를 컨테이너에 맞춤
     const cw = overlay.clientWidth
     const ch = overlay.clientHeight
     if (overlay.width !== cw || overlay.height !== ch) {
@@ -222,9 +230,11 @@ export default function CameraView({
       overlay.height = ch
     }
 
+    // 검출 주기 제한
     if (now - lastDetectRef.current >= DETECT_INTERVAL_MS) {
       lastDetectRef.current = now
 
+      // 오프스크린 캔버스에 비디오 프레임 그리기
       const off = offCanvasRef.current
       off.width  = vw
       off.height = vh
@@ -235,28 +245,30 @@ export default function CameraView({
       try {
         const detector = await getDetector()
         const rawMarkers = detector.detect(imageData)
+
+        // 유효 마커 필터링 (MIN_SIDE_PX 이상)
         const valid = (rawMarkers ?? []).filter(m => avgSidePx(m.corners) >= MIN_SIDE_PX)
 
         if (valid.length === 0) {
           if (markerRef.current.found) {
             markerRef.current = { found: false, pixelPerMm: 0, corners: null }
             onMarkerUpdate(markerRef.current)
-            setMarkerFound(false)   // ← 버튼 비활성화
           }
         } else {
+          // 가장 큰(가까운) 마커 선택
           const best   = valid.reduce((a, b) => avgSidePx(a.corners) > avgSidePx(b.corners) ? a : b)
           const sidePx = avgSidePx(best.corners)
           const ppm    = sidePx / MARKER_REAL_MM
           const next   = { found: true, pixelPerMm: ppm, corners: best.corners, markerId: best.id }
           markerRef.current = next
           onMarkerUpdate(next)
-          setMarkerFound(true)      // ← 버튼 활성화
         }
       } catch (err) {
         console.error('[ArUco]', err)
       }
     }
 
+    // 매 프레임 오버레이 갱신
     const m = markerRef.current
     drawOverlay(overlay, vw, vh, m.found ? m.corners : null, points, m.pixelPerMm)
   }, [points, onMarkerUpdate])
@@ -287,6 +299,7 @@ export default function CameraView({
     const { displayW, displayH, offsetX, offsetY } =
       getVideoDisplayRect(video.videoWidth, video.videoHeight, overlay.clientWidth, overlay.clientHeight)
 
+    // 비디오 표시 영역 밖 탭 무시
     if (dispX < offsetX || dispX > offsetX + displayW ||
         dispY < offsetY || dispY > offsetY + displayH) return
 
@@ -295,16 +308,7 @@ export default function CameraView({
     onTap({ x: videoX, y: videoY })
   }
 
-  // 촬영 버튼 탭 핸들러
-  function handleCaptureTap(e) {
-    e.preventDefault()
-    e.stopPropagation()
-    if (markerFound && onCapture) onCapture()
-  }
-
   const isTapping = tapPhase === 'selecting_p1' || tapPhase === 'selecting_p2'
-  // detecting 단계에서 onCapture 콜백이 있을 때만 촬영 버튼 표시
-  const showCaptureBtn = tapPhase === 'detecting' && onCapture != null
 
   return (
     <div className={styles.wrapper}>
@@ -322,31 +326,11 @@ export default function CameraView({
         onClick={handleTap}
       />
 
-      {/* detecting 단계 안내 + 촬영 버튼 */}
-      {showCaptureBtn && (
-        <div className={styles.captureArea}>
-          <div className={`${styles.hint} ${markerFound ? styles.hintReady : ''}`}>
-            {markerFound ? '마커 감지됨 — 탭하여 촬영' : 'ArUco 마커를 화면에 보이도록 놓으세요'}
-          </div>
-          {markerFound && (
-            <button
-              className={styles.captureBtn}
-              onTouchEnd={handleCaptureTap}
-              onClick={handleCaptureTap}
-            >
-              📸 촬영
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* detecting 단계이지만 onCapture 없을 때 기존 안내 */}
-      {tapPhase === 'detecting' && !onCapture && (
+      {tapPhase === 'detecting' && (
         <div className={styles.hint}>
           ArUco 마커를 화면에 보이도록 놓으세요
         </div>
       )}
-
       {tapPhase === 'selecting_p1' && (
         <div className={`${styles.hint} ${styles.hintTap}`}>
           줄기 한쪽 끝을 탭하세요 (P1)
