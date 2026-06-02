@@ -1,5 +1,5 @@
 // 구글시트(Apps Script) 전송 유틸
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzh9h64pW3t1QPdlLqDvn_bFN4Ep8Np5zvvYvE50gPWCyacCPfQcQKO6cbn1MQ8tHJ5fQ/exec'
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbx1Tv0T4bhlkmbV6gtMtI-nsWV-EA9_8J_yvGevT8cKL-tkPSSsbGetDp_U4CImUQBT6g/exec'
 /**
  * 구글시트로 데이터 전송
  * @param {object} payload - { type, ...fields, photo?, photoName? }
