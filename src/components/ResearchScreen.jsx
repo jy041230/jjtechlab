@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { clearResearchDatabase, makeResearchDatabaseCsv } from '../utils/db'
+import { fetchSheetData } from '../utils/sheetData'
 import styles from './ResearchScreen.module.css'
 
 const ALL = '전체'
@@ -239,7 +240,7 @@ export default function ResearchScreen({ onBack }) {
         <button className={styles.backBtn} onClick={onBack}>&larr; 뒤로</button>
         <div>
           <h1>연구 앱</h1>
-          <p>PC 저장자료만 기준</p>
+          <p>구글시트 기준</p>
         </div>
         <button className={styles.refreshBtn} onClick={loadRows}>새로고침</button>
       </header>
@@ -496,14 +497,42 @@ function DateInput({ label, value, onChange }) {
 }
 
 async function loadPcExportRows() {
-  const res = await fetch('/api/research-db-export')
-  if (!res.ok) throw new Error('PC 저장자료를 읽지 못했습니다.')
-  const data = await res.json()
-  if (!data.ok) throw new Error(data.error || 'PC 저장자료를 읽지 못했습니다.')
-  return {
-    files: data.files ?? [],
-    rows: dedupeRows(data.rows ?? []),
+  const data = await fetchSheetData()
+  const rows = []
+  for (const r of (data.stem ?? [])) {
+    rows.push({
+      날짜: String(r.date ?? '').slice(0, 10),
+      날짜시간: r.date,
+      참여자ID: r.participantId,
+      수목ID: r.treeId,
+      수목구분: r.treeGroup,
+      줄기직경mm: r.cameraMm,
+      캘리퍼스줄기직경mm: r.caliperMm,
+      줄기직경오차mm: r.absError,
+      줄기직경오차율: r.errorRate,
+      비고: '줄기측정',
+      사건유형: '관찰',
+      이미지여부: 'N',
+    })
   }
+  for (const r of (data.soil ?? [])) {
+    rows.push({
+      날짜: String(r.date ?? '').slice(0, 10),
+      날짜시간: r.date,
+      참여자ID: r.participantId,
+      수목ID: r.treeId,
+      수목구분: '',
+      토양PH: r.ph,
+      토양수분: r.moisture,
+      토양온도: r.temp,
+      비옥도: r.fertility,
+      일조: r.sunlight,
+      비고: '토양측정',
+      사건유형: '관찰',
+      이미지여부: 'N',
+    })
+  }
+  return { files: ['구글시트'], rows }
 }
 
 function normalizeResearchRows(rows) {
