@@ -1,4 +1,4 @@
-﻿/**
+/**
  * MeasurementScreen — 통합 측정 화면
  *
  * 버튼 줄: [줄기직경][흉고직경][수고][토양측정][이력][작업일지]
@@ -9,7 +9,6 @@
  *   토양측정:          SOIL_LIVE → SOIL_INPUT → CONFIRMED
  *   수고:              HEIGHT_TODO
  */
-
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useCamera }        from '../hooks/useCamera'
 import { useVoice }         from '../hooks/useVoice'
@@ -36,8 +35,6 @@ import FrozenMeasure  from './FrozenMeasure'
 import SoilInputPanel from './SoilInputPanel'
 import VoiceScreen    from './VoiceScreen'
 import styles from './MeasurementScreen.module.css'
-
-export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onRegisterBack }) {
 
 // ── 측정 유형 ─────────────────────────────────────────────────────────────────
 const MEASUREMENT_TYPES = [
@@ -113,7 +110,7 @@ const PHASE = {
   LIVE:               'live',
   CAPTURING:          'capturing',
   NO_MARKER:          'no_marker',
-  PLACING_POINTS:     'placing_points',  // 핸들 드래그로 P1·P2 배치
+  PLACING_POINTS:     'placing_points',
   CONFIRMED:          'confirmed',
   HEIGHT_TODO:        'height_todo',
   SOIL_METHOD:        'soil_method',
@@ -146,12 +143,12 @@ function validateDiameter(mm, typeId) {
 }
 
 const HEIGHT_RANGE = { min: 0.5, max: 25 }
-function validateHeight(m, typeId) {
+function validateHeight(m) {
   if (m < HEIGHT_RANGE.min) {
-    return { valid: false, msg: `${m.toFixed(2)} m — 최소(${HEIGHT_RANGE.min} m) 미만입니다. 더 가까이서 촬영하거나 삽입된 마커를 확인하세요.` }
+    return { valid: false, msg: `${m.toFixed(2)} m — 최소(${HEIGHT_RANGE.min} m) 미만입니다.` }
   }
   if (m > HEIGHT_RANGE.max) {
-    return { valid: false, msg: `${m.toFixed(2)} m — 최대(${HEIGHT_RANGE.max} m) 초과입니다. 카메라 시야각과 마커 위치를 확인하세요.` }
+    return { valid: false, msg: `${m.toFixed(2)} m — 최대(${HEIGHT_RANGE.max} m) 초과입니다.` }
   }
   return { valid: true, msg: null }
 }
@@ -167,11 +164,10 @@ function isNearMarker(ix, iy, markerCorners, margin = 30) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegisterBack }) {
+export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onRegisterBack }) {
   const [phase, setPhase]               = useState(PHASE.IDLE)
   const [selectedType, setSelectedType] = useState(MEASUREMENT_TYPES[0])
 
-  // ArUco 계측 상태
   const [frozenSrc,     setFrozenSrc]     = useState(null)
   const [frozenSize,    setFrozenSize]    = useState({ w: 0, h: 0 })
   const [markerCorners, setMarkerCorners] = useState(null)
@@ -180,9 +176,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const [result,        setResult]        = useState(null)
   const [debugInfo,     setDebugInfo]     = useState(null)
 
-  // 토양 측정 상태
   const [soilValues,  setSoilValues]  = useState({})
-  const [excelRows,   setExcelRows]   = useState(null)   // 파싱된 엑셀 행
+  const [excelRows,   setExcelRows]   = useState(null)
   const [excelError,  setExcelError]  = useState('')
   const excelFileRef = useRef(null)
   const soilPhotoFileRef = useRef(null)
@@ -191,7 +186,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const researchDbTextRef = useRef(null)
   const cameraMethodFileRef = useRef(null)
 
-  const [markerInfo, setMarkerInfo] = useState(null) // 디버그: 검출 메타데이터
+  const [markerInfo, setMarkerInfo] = useState(null)
   const pointsRef = useRef([])
   const pixelPerMmRef = useRef(0)
   const [journalPhoto, setJournalPhoto] = useState(null)
@@ -200,15 +195,14 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   const [researchDb, setResearchDb] = useState(null)
   const [researchMeta, setResearchMeta] = useState(loadResearchMeta)
   const [caliperMm, setCaliperMm] = useState('')
-  const [cvState, setCvState] = useState('loading') // 'loading' | 'ready' | 'error'
+  const [cvState, setCvState] = useState('loading')
   const [cvError, setCvError] = useState('')
-  const [caliperSource, setCaliperSource] = useState(null) // null | 'auto' | 'manual'
+  const [caliperSource, setCaliperSource] = useState(null)
   const [listRows, setListRows] = useState([])
   const [listLoading, setListLoading] = useState(false)
   const histActiveRef = useRef(false)
   const nativeBackRef = useRef(null)
 
-  // 음성 입력 상태
   const voice = useVoice()
   const [voiceContext, setVoiceContext] = useState(null)
 
@@ -220,7 +214,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setPixelPerMm(numeric)
   }
 
-  // OpenCV 사전 로드 (앱 마운트 시 1회)
   useEffect(() => {
     preloadOpenCV()
       .then(() => setCvState('ready'))
@@ -277,7 +270,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     }
   }
 
-  // 하위 화면 진입 시 브라우저 히스토리 항목 추가 (Android 뒤로가기 대응)
   const isActivePhase = phase !== PHASE.IDLE && phase !== PHASE.CONFIRMED
   useEffect(() => {
     const shouldPush = isActivePhase || !!voiceContext
@@ -289,14 +281,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     }
   }, [isActivePhase, voiceContext])
 
-  // 뒤로가기 핸들러 등록 (App의 popstate가 호출)
   useEffect(() => {
     onRegisterBack?.(() => nativeBackRef.current?.())
   }, [onRegisterBack])
 
-  // ── 공통 리셋 ─────────────────────────────────────────────────────────────
-
-  // 항상 최신 상태를 참조하도록 렌더마다 ref 갱신
   nativeBackRef.current = function handleNativeBack() {
     histActiveRef.current = false
     if (isActive) stopCamera()
@@ -323,8 +311,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setCaliperSource(null)
     setListRows([])
   }
-
-  // ── 타입 버튼: 즉시 동작 ────────────────────────────────────────────────
 
   async function handleTypeAction(t) {
     resetAll()
@@ -361,8 +347,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       e.target.value = ''
     }
   }
-
-  // ── ArUco 카메라 계측 ─────────────────────────────────────────────────────
 
   function handleCloseAll() {
     stopCamera()
@@ -401,7 +385,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         rawCorners:    detected.debug.rawCorners,
         scaleCorners:  detected.debug.scaleCorners,
       })
-      setPhase(PHASE.PLACING_POINTS)  // 점 없는 상태로 시작
+      setPhase(PHASE.PLACING_POINTS)
     } catch (err) {
       console.error('[capture]', err)
       setMarkerCorners(null)
@@ -555,8 +539,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setTimeout(() => setPhase(PHASE.IDLE), 2000)
   }
 
-  // ── 캘리퍼스 직접 입력 ────────────────────────────────────────────────────
-
   async function handleCaliperSave() {
     const value = Number(caliperDirectMm)
     if (!Number.isFinite(value) || value <= 0) {
@@ -590,8 +572,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setCaliperDirectMm('')
     setPhase(PHASE.IDLE)
   }
-
-  // ── 토양 방법 선택 ───────────────────────────────────────────────────────
 
   async function handleSoilMethodSelect(method) {
     if (method === '촬영') {
@@ -662,8 +642,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setPhase(PHASE.SOIL_METHOD)
   }
 
-  // ── 토양 촬영 ────────────────────────────────────────────────────────────
-
   function handleCloseSoilCapture() {
     stopCamera()
     setFrozenSrc(null)
@@ -676,8 +654,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setFrozenSize({ w: videoW, h: videoH })
     setPhase(PHASE.SOIL_INPUT)
   }, [stopCamera])
-
-  // ── 토양 항목 입력 ────────────────────────────────────────────────────────
 
   function handleSoilChange(fieldId, val) {
     const field = SOIL_FIELDS.find(f => f.id === fieldId)
@@ -731,8 +707,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setExcelRows(null)
     setPhase(PHASE.IDLE)
   }
-
-  // ── 음성 입력 ─────────────────────────────────────────────────────────────
 
   function openVoiceCtx(ctx) {
     setVoiceContext(ctx)
@@ -829,9 +803,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
       alert('폰백업 파일을 만들지 못했습니다. 다시 시도해 주세요.')
     }
   }
+
   async function handlePhoneBackupImportClick() {
-    // alert 뒤에 input.click()을 호출하면 스마트폰에서 카메라/이미지 선택기가 뜰 수 있다.
-    // 지원 브라우저에서는 다운로드 폴더 파일 선택기를 먼저 시도한다.
     if (typeof window.showOpenFilePicker === 'function') {
       try {
         const [fileHandle] = await window.showOpenFilePicker({
@@ -865,7 +838,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
   async function handlePhoneBackupImportFileChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
-
     try {
       await handlePhoneBackupImportFile(file)
     } finally {
@@ -1056,8 +1028,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     setListLoading(false)
   }
 
-  // ── 레이아웃 플래그 ───────────────────────────────────────────────────────
-
   const isCameraMode = [
     PHASE.LIVE, PHASE.CAPTURING,
     PHASE.NO_MARKER, PHASE.PLACING_POINTS,
@@ -1080,12 +1050,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
     [PHASE.PLACING_POINTS]: 'placing_points',
   }[phase] ?? 'placing_points'
 
-  // ── 렌더 ─────────────────────────────────────────────────────────────────
-
   return (
     <div className={styles.screen}>
 
-      {/* ── 헤더 ── */}
       {!isCameraMode && (
         isResearchDbScreen ? (
           <header className={styles.soilHeader}>
@@ -1146,10 +1113,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         )
       )}
 
-      {/* ── 에러 배너 ── */}
       {cameraError && <ErrorBanner msg={cameraError} />}
 
-      {/* OpenCV 로드 상태 배너 */}
       {cvState !== 'ready' && !isCameraMode && (
         <div style={{
           background: cvState === 'error' ? '#f8d7da' : '#fff3cd',
@@ -1163,13 +1128,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         </div>
       )}
 
-      {/* ── 메인 콘텐츠 영역 ── */}
       <section className={`${styles.cameraArea} ${isCameraMode ? styles.cameraAreaExpanded : ''} ${(isSoilInputScreen || isJournalSubScreen || isCaliperScreen || isListViewScreen || isCameraMethodScreen) ? styles.cameraAreaSoil : ''}`}>
 
-        {/* 확정 완료 */}
         {phase === PHASE.CONFIRMED && <ConfirmedBadge />}
 
-        {/* ArUco 라이브 카메라 */}
         {phase === PHASE.LIVE && (
           <LiveCamera
             stream={stream}
@@ -1185,7 +1147,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           />
         )}
 
-        {/* ArUco 검출 중 */}
         {phase === PHASE.CAPTURING && (
           <div className={styles.processingOverlay}>
             <span className={styles.processingSpinner}>⏳</span>
@@ -1193,60 +1154,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 디버그 패널 — 좌표계 확인용 (배포 전 제거) */}
-        {SHOW_DEBUG_OVERLAY && phase === PHASE.PLACING_POINTS && markerInfo && (
-          <div style={{
-            position: 'absolute', top: 8, left: 8, zIndex: 200,
-            background: 'rgba(0,0,0,0.82)', color: '#0f0',
-            fontFamily: 'monospace', fontSize: 10, lineHeight: 1.65,
-            padding: '6px 10px', borderRadius: 6, pointerEvents: 'none',
-            maxWidth: 230,
-          }}>
-            <div style={{ color: '#8f8', fontWeight: 'bold', marginBottom: 2 }}>
-              ▸ 검출 프레임: {markerInfo.frameW}×{markerInfo.frameH}
-            </div>
-            <div>이미지: {frozenSize.w}×{frozenSize.h}</div>
-            <div style={{ borderTop: '1px solid #333', marginTop: 2, paddingTop: 2 }}>
-              마커변 {markerInfo.markerSidePx.toFixed(1)}px  px/mm {markerInfo.pixelPerMm.toFixed(3)}
-            </div>
-            {markerInfo.cornerSource && (
-              <div>source: {markerInfo.cornerSource}</div>
-            )}
-            {markerInfo.rawMarkerSidePx && markerInfo.rawMarkerSidePx !== markerInfo.markerSidePx && (
-              <div>raw변 {markerInfo.rawMarkerSidePx.toFixed(1)}px</div>
-            )}
-            <div>면적 {markerInfo.markerAreaPx2?.toFixed(0) ?? '?'} px²</div>
-            {markerInfo.rawCorners && (
-              <div style={{ borderTop: '1px solid #333', marginTop: 2, paddingTop: 2, color: '#0cf' }}>
-                <div>코너 raw (img px):</div>
-                {markerInfo.rawCorners.map((c, i) => (
-                  <div key={i}>  [{i}] ({c.x.toFixed(0)}, {c.y.toFixed(0)})</div>
-                ))}
-              </div>
-            )}
-            {markerInfo.scaleCorners && markerInfo.scaleCorners !== markerInfo.rawCorners && (
-              <div style={{ borderTop: '1px solid #333', marginTop: 2, paddingTop: 2, color: '#ffd166' }}>
-                <div>스케일 코너:</div>
-                {markerInfo.scaleCorners.map((c, i) => (
-                  <div key={i}>  [{i}] ({c.x.toFixed(0)}, {c.y.toFixed(0)})</div>
-                ))}
-              </div>
-            )}
-            {result && points.length === 2 && (() => {
-              const d = Math.abs(points[1].x - points[0].x)
-              return (
-                <div style={{ borderTop: '1px solid #333', marginTop: 2, paddingTop: 2 }}>
-                  <div>P1 ({points[0].x.toFixed(0)},{points[0].y.toFixed(0)})</div>
-                  <div>P2 ({points[1].x.toFixed(0)},{points[1].y.toFixed(0)})</div>
-                  <div>거리 {d.toFixed(1)}px</div>
-                  <div style={{ color: '#ff0', fontWeight: 'bold' }}>→ {result.mm.toFixed(1)} mm</div>
-                </div>
-              )
-            })()}
-          </div>
-        )}
-
-        {/* 정지 이미지 계측 */}
         {[PHASE.NO_MARKER, PHASE.PLACING_POINTS].includes(phase) && (
           <FrozenMeasure
             frozenSrc={frozenSrc} frozenW={frozenSize.w} frozenH={frozenSize.h}
@@ -1256,7 +1163,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           />
         )}
 
-        {/* 토양 측정 방법 선택 */}
         {phase === PHASE.SOIL_METHOD && (
           <div className={styles.soilMethodBox}>
             <ResearchTargetBadge meta={getResearchMeta()} />
@@ -1282,7 +1188,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 엑셀 미리보기 */}
         {phase === PHASE.SOIL_EXCEL_PREVIEW && excelRows && (
           <div className={styles.excelPreviewBox}>
             <ResearchTargetBadge meta={getResearchMeta()} />
@@ -1310,7 +1215,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 토양 OCR 라이브 카메라 + 가이드 박스 */}
         {phase === PHASE.SOIL_LIVE && (
           <>
             <LiveCamera
@@ -1350,7 +1254,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </>
         )}
 
-        {/* 작업일지 방법 선택 */}
         {phase === PHASE.JOURNAL_METHOD && (
           <div className={styles.soilMethodBox}>
             <ResearchTargetBadge meta={getResearchMeta()} />
@@ -1370,7 +1273,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 작업일지 사진 촬영 */}
         {phase === PHASE.JOURNAL_LIVE && (
           <LiveCamera
             stream={stream}
@@ -1391,7 +1293,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           />
         )}
 
-        {/* 작업일지 사진 확인 후 음성 기록 */}
         {phase === PHASE.JOURNAL_REVIEW && (
           <div className={styles.journalReview}>
             <ResearchTargetBadge meta={getResearchMeta()} />
@@ -1425,14 +1326,13 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 연구DB 내보내기 화면 */}
         {phase === PHASE.RESEARCH_DB && researchDb && (
           <div className={styles.researchDbBox}>
             <p className={styles.researchDbTitle}>
               {researchDb.rows.length}개 사건 단위 연구DB
             </p>
             <p className={styles.researchDbGuide}>
-              PC 자동 저장은 계측 저장 때마다 1건씩 처리합니다. 이 화면에서는 CSV를 내려받거나 복사해서 확인용으로만 보관하세요.
+              PC 자동 저장은 계측 저장 때마다 1건씩 처리합니다.
             </p>
             <div className={styles.researchDbActions}>
               <button className={styles.excelConfirmBtn} onClick={handleResearchDbDownload}>
@@ -1460,7 +1360,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 토양 입력 화면 */}
         {isSoilInputScreen && (
           <SoilInputPanel
             frozenSrc={frozenSrc}
@@ -1481,7 +1380,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           />
         )}
 
-        {/* 캘리퍼스 직접 입력 */}
         {isCaliperScreen && (
           <div className={styles.caliperPanel}>
             <div className={styles.caliperSelects}>
@@ -1549,7 +1447,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 카메라 측정 방식 선택 */}
         {phase === PHASE.CAMERA_METHOD && (
           <div className={styles.soilMethodBox}>
             <ResearchTargetBadge meta={getResearchMeta()} />
@@ -1569,12 +1466,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
           </div>
         )}
 
-        {/* 리스트 뷰 */}
         {phase === PHASE.LIST_VIEW && (
           <ListViewPanel rows={listRows} loading={listLoading} />
         )}
 
-        {/* IDLE 안내 */}
         {phase === PHASE.IDLE && (
           <div className={styles.idlePlaceholder}>
             <span style={{ fontSize: 48, opacity: 0.25 }}>👇</span>
@@ -1583,44 +1478,12 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         )}
       </section>
 
-      {/* 숨겨진 파일 입력 (엑셀 불러오기) */}
-      <input
-        type="file"
-        accept=".csv,text/csv,application/csv,text/plain"
-        ref={excelFileRef}
-        style={{ display: 'none' }}
-        onChange={handleExcelFileChange}
-      />
-      <input
-        type="file"
-        accept="image/*"
-        ref={soilPhotoFileRef}
-        style={{ display: 'none' }}
-        onChange={handleSoilPhotoFileChange}
-      />
-      <input
-        type="file"
-        accept="image/*"
-        ref={journalPhotoFileRef}
-        style={{ display: 'none' }}
-        onChange={handleJournalPhotoFileChange}
-      />
-      <input
-        type="file"
-        accept="image/*"
-        ref={cameraMethodFileRef}
-        style={{ display: 'none' }}
-        onChange={handleCameraMethodFileChange}
-      />
+      <input type="file" accept=".csv,text/csv,application/csv,text/plain" ref={excelFileRef} style={{ display: 'none' }} onChange={handleExcelFileChange} />
+      <input type="file" accept="image/*" ref={soilPhotoFileRef} style={{ display: 'none' }} onChange={handleSoilPhotoFileChange} />
+      <input type="file" accept="image/*" ref={journalPhotoFileRef} style={{ display: 'none' }} onChange={handleJournalPhotoFileChange} />
+      <input type="file" accept="image/*" ref={cameraMethodFileRef} style={{ display: 'none' }} onChange={handleCameraMethodFileChange} />
+      <input type="file" accept="application/json,.json,text/json,text/plain" ref={phoneBackupFileRef} style={{ display: 'none' }} onChange={handlePhoneBackupImportFileChange} />
 
-      {/* ── 버튼 줄: 카메라 모드·토양 입력·토양 서브화면에서 숨김 ── */}
-      <input
-        type="file"
-        accept="application/json,.json,text/json,text/plain"
-        ref={phoneBackupFileRef}
-        style={{ display: 'none' }}
-        onChange={handlePhoneBackupImportFileChange}
-      />
       {!isCameraMode && !isSoilInputScreen && !isSoilSubScreen && !isCaliperScreen && !isResearchDbScreen && !isJournalSubScreen && !isListViewScreen && !isCameraMethodScreen && (
         <>
           <section className={styles.researchMetaPanel}>
@@ -1631,18 +1494,11 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             <div className={styles.researchMetaGrid}>
               <label>
                 참여자ID
-                <input
-                  value={researchMeta.participantId}
-                  onChange={e => updateResearchMeta('participantId', e.target.value)}
-                  placeholder="P01"
-                />
+                <input value={researchMeta.participantId} onChange={e => updateResearchMeta('participantId', e.target.value)} placeholder="P01" />
               </label>
               <label>
                 참여자구분
-                <select
-                  value={researchMeta.participantGroup}
-                  onChange={e => updateResearchMeta('participantGroup', e.target.value)}
-                >
+                <select value={researchMeta.participantGroup} onChange={e => updateResearchMeta('participantGroup', e.target.value)}>
                   <option>성인학습자</option>
                   <option>예비 농업인</option>
                   <option>고령 농업인</option>
@@ -1651,10 +1507,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
               </label>
               <label>
                 수목구분
-                <select
-                  value={researchMeta.treeGroup}
-                  onChange={e => updateResearchMeta('treeGroup', e.target.value)}
-                >
+                <select value={researchMeta.treeGroup} onChange={e => updateResearchMeta('treeGroup', e.target.value)}>
                   <option>케이싱 1년</option>
                   <option>케이싱 2년</option>
                   <option>직수수목(대조수목)</option>
@@ -1662,20 +1515,13 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
               </label>
               <label>
                 수목ID
-                <select
-                  value={researchMeta.treeId}
-                  onChange={e => updateResearchMeta('treeId', e.target.value)}
-                >
+                <select value={researchMeta.treeId} onChange={e => updateResearchMeta('treeId', e.target.value)}>
                   {treeIdOptions.map(treeId => <option key={treeId}>{treeId}</option>)}
                 </select>
               </label>
               <label>
                 실험회차
-                <input
-                  value={researchMeta.sessionLabel}
-                  onChange={e => updateResearchMeta('sessionLabel', e.target.value)}
-                  placeholder="1회차"
-                />
+                <input value={researchMeta.sessionLabel} onChange={e => updateResearchMeta('sessionLabel', e.target.value)} placeholder="1회차" />
               </label>
             </div>
           </section>
@@ -1726,21 +1572,16 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         </>
       )}
 
-      {/* ── 카메라 모드 하단 바 ── */}
       {isCameraMode && (
         <section className={styles.cameraBottomBar}>
           {phase === PHASE.SOIL_LIVE && (
             <div className={styles.bottomRow}>
-              <button className={styles.barBtnClose} onClick={handleCloseSoilCapture} style={{ flex: 1 }}>
-                취소
-              </button>
+              <button className={styles.barBtnClose} onClick={handleCloseSoilCapture} style={{ flex: 1 }}>취소</button>
             </div>
           )}
           {phase === PHASE.JOURNAL_LIVE && (
             <div className={styles.bottomRow}>
-              <button className={styles.barBtnClose} onClick={handleJournalClose} style={{ flex: 1 }}>
-                취소
-              </button>
+              <button className={styles.barBtnClose} onClick={handleJournalClose} style={{ flex: 1 }}>취소</button>
             </div>
           )}
           {phase !== PHASE.SOIL_LIVE && phase !== PHASE.JOURNAL_LIVE && (
@@ -1761,12 +1602,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
         </section>
       )}
 
-      {/* ── 상태 바 ── */}
       <footer className={styles.footer}>
         <StatusBar phase={phase} selectedType={selectedType} points={points} />
       </footer>
 
-      {/* ── 음성 입력 오버레이 ── */}
       {voiceContext && (
         <VoiceScreen
           voice={voice}
@@ -1804,20 +1643,6 @@ function ErrorBanner({ msg }) {
     <div className={styles.errorBanner} role="alert">
       <span>⚠️</span>
       <span className={styles.errorText}>{msg}</span>
-    </div>
-  )
-}
-
-function HeightTodoInfo() {
-  return (
-    <div className={styles.cameraPlaceholder}>
-      <div style={{ fontSize: 56, opacity: 0.4 }}>📏</div>
-      <p className={styles.cameraHint}><strong>수고 측정</strong></p>
-      <div className={styles.measureHintBox} style={{ borderColor: '#adb5bd', background: '#f8f9fa' }}>
-        <p className={styles.measureHintText} style={{ color: '#495057', textAlign: 'center' }}>
-          {'수고 측정 기능은 후속 구현 예정입니다.\n현재 버전에서는 사용할 수 없습니다.'}
-        </p>
-      </div>
     </div>
   )
 }
@@ -2076,4 +1901,3 @@ function ListViewPanel({ rows, loading }) {
     </div>
   )
 }
-
