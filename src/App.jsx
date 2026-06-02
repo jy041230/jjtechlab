@@ -2,20 +2,25 @@ import { useState, useEffect, useRef } from 'react'
 import MeasurementScreen from './components/MeasurementScreen'
 import HistoryScreen     from './components/HistoryScreen'
 import ResearchScreen    from './components/ResearchScreen'
+import AnalysisScreen    from './components/AnalysisScreen'
 
 export default function App() {
-  const [showHistory, setShowHistory] = useState(false)
+  const [showHistory,  setShowHistory]  = useState(false)
   const [showResearch, setShowResearch] = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(false)
   const measureBackRef  = useRef(null)
   const showHistoryRef  = useRef(false)
   const showResearchRef = useRef(false)
-  showHistoryRef.current = showHistory
+  const showAnalysisRef = useRef(false)
+  showHistoryRef.current  = showHistory
   showResearchRef.current = showResearch
+  showAnalysisRef.current = showAnalysis
 
-  // 안드로이드 뒤로가기 — popstate 수신
   useEffect(() => {
     function onPopState() {
-      if (showResearchRef.current) {
+      if (showAnalysisRef.current) {
+        setShowAnalysis(false)
+      } else if (showResearchRef.current) {
         setShowResearch(false)
       } else if (showHistoryRef.current) {
         setShowHistory(false)
@@ -37,9 +42,16 @@ export default function App() {
     setShowResearch(true)
   }
 
+  function goAnalysis() {
+    history.pushState({ screen: 'analysis' }, '')
+    setShowAnalysis(true)
+  }
+
   return (
     <div style={{ height: '100dvh', overflow: 'hidden' }}>
-      {showResearch ? (
+      {showAnalysis ? (
+        <AnalysisScreen onBack={() => setShowAnalysis(false)} />
+      ) : showResearch ? (
         <ResearchScreen onBack={() => setShowResearch(false)} />
       ) : showHistory ? (
         <HistoryScreen onBack={() => setShowHistory(false)} />
@@ -47,6 +59,7 @@ export default function App() {
         <MeasurementScreen
           onGoHistory={goHistory}
           onGoResearch={goResearch}
+          onGoAnalysis={goAnalysis}
           onRegisterBack={cb => { measureBackRef.current = cb }}
         />
       )}

@@ -9,6 +9,7 @@
  *   토양측정:          SOIL_LIVE → SOIL_INPUT → CONFIRMED
  *   수고:              HEIGHT_TODO
  */
+export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onRegisterBack }) {
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useCamera }        from '../hooks/useCamera'
 import { useVoice }         from '../hooks/useVoice'
@@ -1714,6 +1715,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onRegiste
             <button className={styles.typeBtn} onClick={onGoResearch}>
               <span className={styles.typeIcon}>📈</span>
               <span className={styles.typeLabel}>연구앱</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoAnalysis}>
+              <span className={styles.typeIcon}>📊</span>
+              <span className={styles.typeLabel}>분석</span>
             </button>
           </section>
         </>
