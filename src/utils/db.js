@@ -213,19 +213,22 @@ export async function saveDiameterMeasurement({ typeId, mm, validationStatus, pi
   }
   const caliperMmNum = Number(meta.caliperMm)
   const absErr = Number.isFinite(caliperMmNum) && caliperMmNum > 0 ? Math.abs(parseFloat(mm.toFixed(2)) - caliperMmNum) : ''
-  sendToSheet({
-    type: 'stem',
-    participantId: meta.participantId ?? '',
-    treeId: meta.treeId ?? '',
-    treeType: meta.treeGroup ?? '',
-    cameraMm: parseFloat(mm.toFixed(2)),
-    caliperMm: Number.isFinite(caliperMmNum) ? caliperMmNum : '',
-    absError: absErr === '' ? '' : parseFloat(absErr.toFixed(2)),
-    errorRate: (absErr !== '' && caliperMmNum > 0) ? parseFloat((absErr / caliperMmNum * 100).toFixed(2)) : '',
-    pxPerMm: pixelPerMm ?? '',
-    photo: imageDataUrl ?? '',
-    photoName: `stem_${meta.treeId ?? 'x'}_${Date.now()}`,
-  })
+
+   if (typeId !== '캘리퍼스직경') {
+    sendToSheet({
+      type: 'stem',
+      participantId: meta.participantId ?? '',
+      treeId: meta.treeId ?? '',
+      treeType: meta.treeGroup ?? '',
+      cameraMm: parseFloat(mm.toFixed(2)),
+      caliperMm: Number.isFinite(caliperMmNum) ? caliperMmNum : '',
+      absError: absErr === '' ? '' : parseFloat(absErr.toFixed(2)),
+      errorRate: (absErr !== '' && caliperMmNum > 0) ? parseFloat((absErr / caliperMmNum * 100).toFixed(2)) : '',
+      pxPerMm: pixelPerMm ?? '',
+      photo: imageDataUrl ?? '',
+      photoName: `stem_${meta.treeId ?? 'x'}_${Date.now()}`,
+    })
+  }
   return eventId
 }
 
