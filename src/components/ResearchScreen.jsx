@@ -32,10 +32,10 @@ export default function ResearchScreen({ onBack }) {
       const pcData = await loadPcExportRows()
       const normalizedRows = normalizeResearchRows(pcData.rows)
       setRows(normalizedRows)
-      setSourceInfo(`PC 저장자료 ${pcData.files.length}개 파일, ${normalizedRows.length}건 (앱 임시자료 미포함)`)
+      setSourceInfo(`구글시트저장 자료 ${pcData.files.length}개 파일, ${normalizedRows.length}건 (앱 임시자료 미포함)`)
     } catch (err) {
-      console.error('[연구 앱 로드 실패]', err)
-      setMessage('연구 데이터를 불러오지 못했습니다.')
+      console.error('[구글시트 로드 실패]', err)
+      setMessage('구글시트 데이터를 불러오지 못했습니다.')
     } finally {
       setLoading(false)
     }
@@ -199,7 +199,7 @@ export default function ResearchScreen({ onBack }) {
   async function handleBackupAndClearAppData() {
     const ok = window.confirm(
       '앱 안의 임시 측정자료를 PC에 백업한 뒤 초기화할까요?\n\n' +
-      'PC에 이미 저장된 전체 연구자료는 지우지 않습니다.'
+      'PC에 이미 저장된 전체 자료는 지우지 않습니다.'
     )
     if (!ok) return
 
@@ -218,7 +218,7 @@ export default function ResearchScreen({ onBack }) {
   async function handleClearAppDataOnly() {
     const first = window.confirm(
       '앱 안의 임시 측정자료만 초기화할까요?\n\n' +
-      'PC에 저장된 전체 연구자료는 지우지 않습니다.'
+      '구글시트에 저장된 전체 자료는 지우지 않습니다.'
     )
     if (!first) return
     const second = window.confirm('백업 없이 앱 안 자료를 비웁니다. 정말 초기화할까요?')
@@ -239,14 +239,14 @@ export default function ResearchScreen({ onBack }) {
       <header className={styles.header}>
         <button className={styles.backBtn} onClick={onBack}>&larr; 뒤로</button>
         <div>
-          <h1>연구 앱</h1>
+          <h1>측정현황</h1>
           <p>구글시트 기준</p>
         </div>
         <button className={styles.refreshBtn} onClick={loadRows}>새로고침</button>
       </header>
 
       {loading ? (
-        <main className={styles.emptyBox}>연구 데이터를 불러오는 중입니다.</main>
+        <main className={styles.emptyBox}>구글시트 데이터를 불러오는 중입니다.</main>
       ) : (
         <main className={styles.content}>
           {sourceInfo && <p className={styles.sourceInfo}>{sourceInfo}</p>}
@@ -254,7 +254,7 @@ export default function ResearchScreen({ onBack }) {
           <section className={styles.backupPanel}>
             <div>
               <strong>측정 시작 전 자료 관리</strong>
-              <p>PC 저장자료는 보존하고, 현재 앱 안에 쌓인 임시 측정자료만 백업하거나 초기화합니다.</p>
+              <p>구글시트저장 자료는 보존하고, 현재 앱 안에 쌓인 임시 측정자료만 백업하거나 초기화합니다.</p>
             </div>
             <div className={styles.backupActions}>
               <button className={styles.secondaryActionBtn} onClick={handleBackupAppData}>
