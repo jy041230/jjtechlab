@@ -18,6 +18,9 @@ let _detector = null
 let _detectorLoading = false
 let _detectorError   = null
 
+
+
+
 async function getDetector() {
   if (_detector)      return _detector
   if (_detectorError) throw new Error(_detectorError)
@@ -27,12 +30,10 @@ async function getDetector() {
   }
   _detectorLoading = true
   try {
-    const mod = await import('js-aruco2')
-    const AR  = mod.AR ?? mod.default?.AR
-    const Det = AR?.Detector ?? mod.Detector ?? mod.default
-    if (!Det) throw new Error('Detector 클래스를 찾을 수 없습니다')
-    try { _detector = new Det({ dictionary: '4X4_50' }) }
-    catch { _detector = new Det() }
+    const AR = (await import('../utils/aruco-lib.js')).default
+    if (!AR?.Detector) throw new Error('Detector 클래스를 찾을 수 없습니다')
+    try { _detector = new AR.Detector({ dictionary: '4X4_50' }) }
+    catch { _detector = new AR.Detector() }
     return _detector
   } catch (err) {
     _detectorError = `ArUco 로드 실패: ${err.message}`
@@ -41,6 +42,11 @@ async function getDetector() {
     _detectorLoading = false
   }
 }
+
+
+
+
+
 
 function avgSidePx(corners) {
   let t = 0
