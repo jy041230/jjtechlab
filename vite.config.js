@@ -130,6 +130,18 @@ function parseCsvRows(text) {
 
 export default {
   root: projectRoot,
+  
+ optimizeDeps: {
+    include: ['js-aruco2'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/js-aruco2/, /node_modules/],
+    },
+  },
+  
+
+  
   server: {
     host: true,
     port: 5174,
