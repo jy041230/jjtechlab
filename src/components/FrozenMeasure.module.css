@@ -137,3 +137,55 @@
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.72; }
 }
+
+/* in-canvas pixel zoom overlay */
+.pixelZoomOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  pointer-events: none;
+}
+.pixelZoomOverlay .zoomArrows {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+.pixelZoomOverlay .zoomArrows button {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 20px;
+}
+.pixelZoomOverlay .zoomArrows > div { display:flex; gap:10px }
+.zoomConfirmRow {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+.confirmBtn {
+  background: #ffd166;
+  color: #1b1b1b;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+.cancelBtn {
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+}

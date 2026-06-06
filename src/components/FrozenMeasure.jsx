@@ -11,15 +11,11 @@
 import { useRef, useEffect, useState } from 'react'
 import styles from './FrozenMeasure.module.css'
 import { avgSidePx } from '../utils/aruco'
-import MeasurementLoupe from './MeasurementLoupe'
-import { useMeasurementLoupe } from './useMeasurementLoupe'
+// removed MeasurementLoupe and useMeasurementLoupe; using in-canvas CSS scale zoom flow
 
 const HANDLE_VISUAL_R = 8    // 핸들 시각 반지름 (canvas px) — 정밀 표시
 const HANDLE_ARM      = 22   // 십자선 팔 길이 (center에서 ±)
 const HIT_R           = 56   // 드래그 히트 반지름 (canvas px) — 터치 편의
-const LOUPE_R         = 80   // 루페 반지름 (canvas px)
-const LOUPE_ZOOM  = 3.5  // 루페 배율
-const LOUPE_ABOVE = 165  // 루페 중심을 터치 위로 올리는 거리 (canvas px)
 const TAP_MAX_PX  = 28   // 현장 휴대폰 터치 흔들림을 탭으로 받아들이는 허용 범위
 
 // ── 좌표 변환 ──────────────────────────────────────────────────────────────────
@@ -253,16 +249,18 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
 
   return blobs.sort((a, b) => b.count - a.count)
 }
-
-function pickStickerPair(blobs, w, h, markerCorners) {
-  if (blobs.length < 2) return null
-  const markerSide = markerCorners?.length === 4 ? avgSidePx(markerCorners) : Math.min(w, h) * 0.1
-  const p1Candidates = blobs.filter(blob => blob.role === 'p1').slice(0, 8)
-  const p2Candidates = blobs.filter(blob => blob.role === 'p2').slice(0, 8)
-  if (p1Candidates.length && p2Candidates.length) {
-    let bestColorPair = null
-    let bestColorScore = -Infinity
-    for (const p1 of p1Candidates) {
+        <canvas
+          ref={canvasRef}
+          className={styles.canvas}
+          style={{
+            cursor: isPlacing
+              ? (draggingIdx !== null ? 'grabbing'
+                 : points.length < 2  ? 'crosshair' : 'grab')
+              : 'default',
+            transformOrigin: '0 0',
+            transform: zoomState.active ? `translate(${zoomState.tx}px, ${zoomState.ty}px) scale(${zoomState.scale})` : undefined,
+          }}
+        />
       for (const p2 of p2Candidates) {
         const dx = p2.x - p1.x
         const dy = Math.abs(p2.y - p1.y)
@@ -318,111 +316,7 @@ function zoomAtDisplayPoint(currentView, factor, focus, imgW, imgH, cw, ch) {
   }, imgW, imgH, cw, ch)
 }
 
-// ── 루페 그리기 ───────────────────────────────────────────────────────────────
-
-function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
-  const { displayW, imgW } = layout
-  // Loupe size: 70% of canvas width
-  const diameter = Math.floor(cw * 0.7)
-  const R = Math.floor(diameter / 2)
-  const ZOOM = 10 // requested 10x
-
-  // compute source region in image pixels that maps to loupe
-  const scale = imgW / displayW
-  const halfRegionImg = R / ZOOM * scale
-  const srcW = Math.max(1, Math.floor(halfRegionImg * 2))
-  const srcH = Math.max(1, Math.floor(halfRegionImg * 2))
-  const srcX = Math.max(0, Math.min(layout.imgW - srcW, Math.round(imgPt.x - halfRegionImg)))
-  const srcY = Math.max(0, Math.min(layout.imgH - srcH, Math.round(imgPt.y - halfRegionImg)))
-
-  // Fixed position: top center (avoid finger occlusion)
-  const loupeCX = Math.floor(cw / 2)
-  const loupeCY = Math.floor(R + 20)
-
-  // draw magnified image clipped to circle
-  ctx.save()
-  ctx.beginPath()
-  ctx.arc(loupeCX, loupeCY, R, 0, Math.PI * 2)
-  ctx.clip()
-  ctx.drawImage(img, srcX, srcY, srcW, srcH,
-    loupeCX - R, loupeCY - R, R * 2, R * 2)
-  ctx.restore()
-
-  // circular border
-  ctx.beginPath(); ctx.arc(loupeCX, loupeCY, R, 0, Math.PI * 2)
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke()
-
-  // draw pixel grid (more visible)
-  ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-  ctx.lineWidth = 0.6
-  const pxW = (R * 2) / srcW
-  const pxH = (R * 2) / srcH
-  for (let i = 0; i <= srcW; i++) {
-    const x = loupeCX - R + i * pxW
-    ctx.beginPath(); ctx.moveTo(x, loupeCY - R); ctx.lineTo(x, loupeCY + R); ctx.stroke()
-  }
-  for (let j = 0; j <= srcH; j++) {
-    const y = loupeCY - R + j * pxH
-    ctx.beginPath(); ctx.moveTo(loupeCX - R, y); ctx.lineTo(loupeCX + R, y); ctx.stroke()
-  }
-
-  // extract patch pixels for edge detection and overlay
-  try {
-    const tmp = document.createElement('canvas')
-    tmp.width = srcW; tmp.height = srcH
-    const tctx = tmp.getContext('2d')
-    tctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH)
-    const imageData = tctx.getImageData(0, 0, srcW, srcH)
-    const data = imageData.data
-    const gray = new Float32Array(srcW * srcH)
-    for (let i = 0; i < srcW * srcH; i++) {
-      const pi = i * 4
-      gray[i] = 0.299 * data[pi] + 0.587 * data[pi + 1] + 0.114 * data[pi + 2]
-    }
-
-    const edges = new Uint8Array(srcW * srcH)
-    const thresh = 30
-    for (let y = 1; y < srcH - 1; y++) {
-      for (let x = 1; x < srcW - 1; x++) {
-        const idx = (r, c) => gray[(y + r) * srcW + (x + c)]
-        const gx = -idx(-1, -1) + idx(-1, 1) - 2 * idx(0, -1) + 2 * idx(0, 1) - idx(1, -1) + idx(1, 1)
-        const gy = -idx(-1, -1) - 2 * idx(-1, 0) - idx(-1, 1) + idx(1, -1) + 2 * idx(1, 0) + idx(1, 1)
-        const mag = Math.sqrt(gx * gx + gy * gy)
-        edges[y * srcW + x] = mag > thresh ? 1 : 0
-      }
-    }
-
-    // draw edge overlays (bright yellow stroke, 2px)
-    ctx.strokeStyle = '#FFE500'
-    ctx.lineWidth = 2
-    for (let py = 0; py < srcH; py++) {
-      for (let px = 0; px < srcW; px++) {
-        if (!edges[py * srcW + px]) continue
-        const drawX = loupeCX - R + px * pxW
-        const drawY = loupeCY - R + py * pxH
-        ctx.beginPath()
-        ctx.rect(drawX, drawY, pxW, pxH)
-        ctx.stroke()
-      }
-    }
-  } catch (err) {
-    // silently ignore if imageData operations fail
-  }
-
-  // center crosshair
-  const midX = loupeCX
-  const midY = loupeCY
-  ctx.strokeStyle = 'rgba(0,200,100,0.95)'; ctx.lineWidth = 2
-  ctx.beginPath(); ctx.moveTo(midX - 26, midY); ctx.lineTo(midX + 26, midY)
-  ctx.moveTo(midX, midY - 26); ctx.lineTo(midX, midY + 26)
-  ctx.stroke()
-
-  // zoom badge
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'
-  ctx.fillRect(loupeCX - R, loupeCY + R - 26, R * 2, 26)
-  ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#ffd166'; ctx.textAlign = 'center'
-  ctx.fillText(`${ZOOM}×`, loupeCX, loupeCY + R - 8)
-}
+// (popup loupe removed) in-canvas CSS scale zoom flow used instead
 
 // ── 핸들 그리기 (작은 점 + 십자선 / 히트 영역은 별도로 크게) ────────────────
 
@@ -454,7 +348,7 @@ function drawHandle(ctx, dispX, dispY, label, isDragging) {
 
 // ── 메인 캔버스 렌더 ─────────────────────────────────────────────────────────
 
-function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, draggingIdx, loupeImgPt) {
+function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, draggingIdx) {
   const cw  = canvas.width
   const ch  = canvas.height
   const ctx = canvas.getContext('2d')
@@ -527,11 +421,7 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
     })
   }
 
-  // 루페 (드래그 중)
-  if (loupeImgPt !== null && draggingIdx !== null && tapPhase === 'placing_points') {
-    const fingerDisp = imgToDisp(loupeImgPt.x, loupeImgPt.y, layout)
-    drawLoupe(ctx, img, layout, fingerDisp, loupeImgPt, cw)
-  }
+  // (in-canvas zoom replaces popup loupe)
 }
 
 // ── FrozenMeasure 컴포넌트 ───────────────────────────────────────────────────
@@ -563,13 +453,10 @@ export default function FrozenMeasure({
 
   const [imgReady,    setImgReady]    = useState(false)
   const [draggingIdx, setDraggingIdx] = useState(null)
-  const [loupeImgPt,  setLoupeImgPt] = useState(null)
+  // in-canvas zoom state for pixel-level picking
+  const [zoomState, setZoomState] = useState({ active: false, picking: null, imgX: 0, imgY: 0, scale: 8, tx: 0, ty: 0 })
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
-  // 루페 훅 (캔버스 확대/픽셀 선택 UI)
-  const { loupeCanvasRef, updateLoupe, nudge, getPoint, LOUPE_SIZE } = useMeasurementLoupe(canvasRef)
-  const [loupeOpen, setLoupeOpen] = useState(false)
-  const [loupePt, setLoupePt] = useState({ x: 0, y: 0 })
-  const srcImageCanvasRef = useRef(null)
+  // zoomState controls in-canvas CSS transform for pixel nudging
 
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
@@ -579,7 +466,7 @@ export default function FrozenMeasure({
     if (!points.length) {
       draggingRef.current = null
       setDraggingIdx(null)
-      setLoupeImgPt(null)
+      // clear any temporary drag state
     }
   }, [points])
   useEffect(() => { viewRef.current = view },               [view])
@@ -617,10 +504,10 @@ export default function FrozenMeasure({
     }
     layoutRef.current = computeLayout(frozenW, frozenH, cw, ch, safeView)
     // 드래그 중: localPtsRef 사용, 아닐 때: props.points 사용
-    const displayPts = draggingRef.current !== null ? localPtsRef.current : points
-    redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
-           displayPts, pixelPerMm, tapPhase, draggingIdx, loupeImgPt)
-  }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, loupeImgPt, view])
+        const displayPts = draggingRef.current !== null ? localPtsRef.current : points
+        redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
+          displayPts, pixelPerMm, tapPhase, draggingIdx)
+      }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view])
 
   function updateView(nextView) {
     const canvas = canvasRef.current
@@ -772,6 +659,53 @@ export default function FrozenMeasure({
     })
   }
 
+  // --- in-canvas zoom helpers for pixel-precise picking ---
+  function computeCanvasTransformForImg(imgX, imgY, scale) {
+    const container = containerRef.current
+    const layout = layoutRef.current
+    if (!container || !layout) return { tx: 0, ty: 0 }
+    const cw = container.clientWidth
+    const ch = container.clientHeight
+    const disp = imgToDisp(imgX, imgY, layout)
+    // transform: translate(tx,ty) scale(scale) with transformOrigin 0 0
+    // final position of point = (disp + tx) * scale -> want at center (cw/2, ch/2)
+    const tx = (cw / 2) / scale - disp.x
+    const ty = (ch / 2) / scale - disp.y
+    return { tx, ty }
+  }
+
+  function enterZoomAt(imgX, imgY) {
+    const scale = 8
+    const { tx, ty } = computeCanvasTransformForImg(imgX, imgY, scale)
+    setZoomState({ active: true, picking: localPtsRef.current.length, imgX: Math.round(imgX), imgY: Math.round(imgY), scale, tx, ty })
+  }
+
+  function nudgeZoom(dx, dy) {
+    setZoomState(prev => {
+      if (!prev.active) return prev
+      const { w, h } = sizeRef.current
+      const nx = Math.max(0, Math.min(w - 1, prev.imgX + dx))
+      const ny = Math.max(0, Math.min(h - 1, prev.imgY + dy))
+      const { tx, ty } = computeCanvasTransformForImg(nx, ny, prev.scale)
+      return { ...prev, imgX: nx, imgY: ny, tx, ty }
+    })
+  }
+
+  function confirmZoom() {
+    setZoomState(prev => {
+      if (!prev.active) return { ...prev, active: false }
+      const pt = { x: prev.imgX, y: prev.imgY }
+      const current = [...localPtsRef.current, pt]
+      localPtsRef.current = current
+      onChangeRef.current?.(current)
+      return { ...prev, active: false }
+    })
+  }
+
+  function cancelZoom() {
+    setZoomState(prev => ({ ...prev, active: false }))
+  }
+
   useEffect(() => {
     if (!imgReady || !markerCorners?.length || points.length !== 0) return
     const key = `${frozenSrc}-${markerCorners.map(c => `${Math.round(c.x)},${Math.round(c.y)}`).join('|')}`
@@ -836,7 +770,7 @@ export default function FrozenMeasure({
           draggingRef.current = hit
           setDraggingIdx(hit)
           const imgPt = localPtsRef.current[hit]
-          setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
+          // removed loupe-on-drag behavior
           panStartRef.current = null
         }
       }
@@ -892,7 +826,7 @@ export default function FrozenMeasure({
       if (draggingRef.current !== null) {
         draggingRef.current = null
         setDraggingIdx(null)
-        setLoupeImgPt(null)
+        // removed loupe-on-drag behavior
         return
       }
 
@@ -910,22 +844,8 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return  // 이미 2점 확정
 
-      // 탭한 위치로 루페를 열어 사용자가 픽셀 단위로 조정하고 확정하도록 함
-      // ensure offscreen canvas has image at native size, then pass as override
-      if (imgRef.current) {
-        if (!srcImageCanvasRef.current) srcImageCanvasRef.current = document.createElement('canvas')
-        const sc = srcImageCanvasRef.current
-        sc.width = sizeRef.current.w
-        sc.height = sizeRef.current.h
-        const sctx = sc.getContext('2d', { willReadFrequently: true })
-        sctx.clearRect(0, 0, sc.width, sc.height)
-        sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
-        updateLoupe(imgPt.x, imgPt.y, sc)
-      } else {
-        updateLoupe(imgPt.x, imgPt.y)
-      }
-      setLoupePt({ x: Math.round(imgPt.x), y: Math.round(imgPt.y) })
-      setLoupeOpen(true)
+      // 탭한 위치에서 in-canvas 8× 확대 모드로 진입하여 픽셀 단위 조정
+      enterZoomAt(imgPt.x, imgPt.y)
     }
 
     // ── Mouse (데스크톱 테스트) ────────────────────────────────────────────
@@ -939,7 +859,7 @@ export default function FrozenMeasure({
           draggingRef.current = hit
           setDraggingIdx(hit)
           const imgPt = localPtsRef.current[hit]
-          setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
+          // removed loupe-on-drag behavior
         }
       }
     }
@@ -974,20 +894,8 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return
 
-      if (imgRef.current) {
-        if (!srcImageCanvasRef.current) srcImageCanvasRef.current = document.createElement('canvas')
-        const sc = srcImageCanvasRef.current
-        sc.width = sizeRef.current.w
-        sc.height = sizeRef.current.h
-        const sctx = sc.getContext('2d', { willReadFrequently: true })
-        sctx.clearRect(0, 0, sc.width, sc.height)
-        sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
-        updateLoupe(imgPt.x, imgPt.y, sc)
-      } else {
-        updateLoupe(imgPt.x, imgPt.y)
-      }
-      setLoupePt({ x: Math.round(imgPt.x), y: Math.round(imgPt.y) })
-      setLoupeOpen(true)
+      // enter in-canvas zoom mode
+      enterZoomAt(imgPt.x, imgPt.y)
     }
 
     
@@ -1011,35 +919,10 @@ export default function FrozenMeasure({
 
   const isPlacing = tapPhase === 'placing_points'
 
-  // 루페 UI 제어: ±1픽셀 조정, 확인/취소 (컴포넌트 범위)
-  function handleLoupeNudge(dx, dy) {
-    if (srcImageCanvasRef.current) {
-      // ensure current image drawn
-      const sc = srcImageCanvasRef.current
-      sc.width = sizeRef.current.w
-      sc.height = sizeRef.current.h
-      const sctx = sc.getContext('2d', { willReadFrequently: true })
-      sctx.clearRect(0, 0, sc.width, sc.height)
-      sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
-      nudge(dx, dy, sc)
-    } else {
-      nudge(dx, dy)
-    }
-    setLoupePt(getPoint())
-  }
-
-  function handleLoupeConfirm() {
-    const pt = getPoint()
-    const currentPts = localPtsRef.current
-    const newPts = [...currentPts, pt]
-    localPtsRef.current = newPts
-    onChangeRef.current?.(newPts)
-    setLoupeOpen(false)
-  }
-
-  function handleLoupeCancel() {
-    setLoupeOpen(false)
-  }
+  // Zoom controls: nudge, confirm, cancel
+  function handleNudge(dx, dy) { nudgeZoom(dx, dy) }
+  function handleConfirm() { confirmZoom() }
+  function handleCancel() { cancelZoom() }
 
   return (
     <div ref={containerRef} className={styles.container}>
@@ -1116,17 +999,22 @@ export default function FrozenMeasure({
             : 'P1·P2를 줄기 양쪽 끝에 맞춘 뒤 측정을 누르세요'}
         </div>
       )}
-      {/* 루페 팝업(탭 시 열림) */}
-      {loupeOpen && (
-        <MeasurementLoupe
-          loupeCanvasRef={loupeCanvasRef}
-          loupeSize={LOUPE_SIZE}
-          pixelCoord={loupePt}
-          onNudge={handleLoupeNudge}
-          onConfirm={handleLoupeConfirm}
-          onCancel={handleLoupeCancel}
-          pointLabel={localPtsRef.current.length === 0 ? '시작점' : '끝점'}
-        />
+      {/* in-canvas zoom controls */}
+      {zoomState.active && (
+        <div className={styles.pixelZoomOverlay}>
+          <div className={styles.zoomArrows}>
+            <button onClick={() => handleNudge(0, -1)}>▲</button>
+            <div>
+              <button onClick={() => handleNudge(-1, 0)}>◀</button>
+              <button onClick={() => handleNudge(1, 0)}>▶</button>
+            </div>
+            <button onClick={() => handleNudge(0, 1)}>▼</button>
+          </div>
+          <div className={styles.zoomConfirmRow}>
+            <button className={styles.cancelBtn} onClick={handleCancel}>취소</button>
+            <button className={styles.confirmBtn} onClick={handleConfirm}>P{zoomState.picking === 0 ? '1' : '2'} 확정</button>
+          </div>
+        </div>
       )}
     </div>
   )
