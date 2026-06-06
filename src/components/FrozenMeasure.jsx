@@ -10,7 +10,7 @@
  */
 import { useRef, useEffect, useState } from 'react'
 import styles from './FrozenMeasure.module.css'
-import { useCanvasZoomMeasure } from './useCanvasZoomMeasure'
+// useCanvasZoomMeasure removed: implement pick/zoom flow inside this component
 import { avgSidePx } from '../utils/aruco'
 // removed MeasurementLoupe and useMeasurementLoupe; using in-canvas CSS scale zoom flow
 
@@ -431,6 +431,11 @@ export default function FrozenMeasure({
   const mouseDownRef  = useRef(null)   // { x, y }
   const wrapperRef = useRef(null)
   const miniRef = useRef(null)
+  // pick state for in-component zoom/pixel pick
+  const [pickStep, setPickStep] = useState(0) // 0=P1 wait,1=P1 adjust,2=P2 wait,3=P2 adjust,4=done
+  const [pickedP1, setPickedP1] = useState(null)
+  const [pickedP2, setPickedP2] = useState(null)
+  const [pickPixel, setPickPixel] = useState(null)
   const panStartRef = useRef(null)
   const viewRef = useRef({ zoom: 1, panX: 0, panY: 0 })
   const sizeRef = useRef({ w: frozenW, h: frozenH })
@@ -440,19 +445,21 @@ export default function FrozenMeasure({
   const [draggingIdx, setDraggingIdx] = useState(null)
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
 
-  // useCanvasZoomMeasure hook
-  const {
-    step, p1, p2, active, cssTransform, distMm,
-    isZooming, stepLabel,
-    handleTap, nudge, confirm, cancel, reset,
-  } = useCanvasZoomMeasure({ canvasRef, wrapperRef, layoutRef, pixelPerMm, onDone: (mm) => { if (typeof onPointsChange === 'function') onPointsChange(mm) } })
+  // pickStep-driven zoom/pick control (inlined)
+  let stepLabel = [
+    'P1: 줄기 한쪽 끝을 탭하세요',
+    'P1 위치 조정 후 확정하세요',
+    'P2: 줄기 반대쪽 끝을 탭하세요',
+    'P2 위치 조정 후 확정하세요',
+    '측정 완료',
+  ][pickStep] ?? ''
 
 
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
   useEffect(() => { onChangeRef.current = onPointsChange }, [onPointsChange])
   useEffect(() => {
-    // draw minimap (thumbnail + viewport rect) when zooming
+    // draw minimap (thumbnail + viewport rect) when in pick-zoom state
     const mini = miniRef.current
     const img = imgRef.current
     if (!mini || !img) return
@@ -500,7 +507,7 @@ export default function FrozenMeasure({
     const runner = () => { draw(); raf = requestAnimationFrame(runner) }
     runner()
     return () => cancelAnimationFrame(raf)
-  }, [isZooming])
+  }, [pickStep])
 
   useEffect(() => {
     localPtsRef.current = points
@@ -554,8 +561,8 @@ export default function FrozenMeasure({
           displayPts = draggingRef.current !== null ? localPtsRef.current : points
         }
         redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
-          displayPts, pixelPerMm, tapPhase, draggingIdx, active, isZooming)
-      }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view, active, isZooming])
+          displayPts, pixelPerMm, tapPhase, draggingIdx, pickPixel, (pickStep === 1 || pickStep === 3))
+      }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view, pickPixel, pickStep])
 
   function updateView(nextView) {
     const canvas = canvasRef.current
@@ -845,8 +852,16 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return  // 이미 2점 확정
 
-      // 탭한 위치에서 in-canvas 8× 확대 모드로 진입하여 픽셀 단위 조정
-      handleTap(e)
+      // If waiting for P1 or P2, enter pick-adjust mode using existing zoom system
+      if (pickStep === 0 || pickStep === 2) {
+        setPickPixel(imgPt)
+        const container = containerRef.current
+        const cw = container?.clientWidth || 0
+        const ch = container?.clientHeight || 0
+        const nextView = zoomAtDisplayPoint(viewRef.current, 3, { x: cp.x, y: cp.y }, frozenW, frozenH, cw, ch)
+        updateView(nextView)
+        setPickStep(s => s + 1)
+      }
     }
 
     // ── Mouse (데스크톱 테스트) ────────────────────────────────────────────
@@ -893,8 +908,17 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return
 
-      // enter in-canvas zoom mode via hook
-      handleTap(e)
+      // If waiting for P1 or P2, enter pick-adjust mode using existing zoom system
+      if (pickStep === 0 || pickStep === 2) {
+        setPickPixel(imgPt)
+        const container = containerRef.current
+        const cw = container?.clientWidth || 0
+        const ch = container?.clientHeight || 0
+        const cp = { x: e.offsetX, y: e.offsetY }
+        const nextView = zoomAtDisplayPoint(viewRef.current, 3, cp, frozenW, frozenH, cw, ch)
+        updateView(nextView)
+        setPickStep(s => s + 1)
+      }
     }
 
     
@@ -949,17 +973,12 @@ export default function FrozenMeasure({
             width: '100%',
             height: '100%',
             display: 'block',
-            transformOrigin: '0 0',
-            transform: cssTransform,
-            transition: isZooming
-              ? 'transform 0.25s ease'
-              : 'transform 0.2s ease',
-            cursor: (!isZooming) ? 'crosshair' : 'default',
           }}
         />
 
         {/* 캔버스 중앙에 확대 포인터 (스케일링과 무관하게 항상 화면 중앙에 표시) */}
-        {isZooming && active && (
+        {/* center marker during pick-adjust */}
+        {(pickStep === 1 || pickStep === 3) && pickPixel && (
           <div style={{
             position: 'absolute', left: '50%', top: '50%',
             transform: 'translate(-50%, -50%)',
@@ -970,7 +989,7 @@ export default function FrozenMeasure({
         )}
 
         {/* ── 확대 중 좌표 표시 ─────────────────────── */}
-        {isZooming && active && (
+        {(pickStep === 1 || pickStep === 3) && pickPixel && (
           <div style={{
             position: 'absolute', top: 8, left: '50%',
             transform: 'translateX(-50%)',
@@ -979,7 +998,7 @@ export default function FrozenMeasure({
             padding: '4px 14px', fontSize: 13,
             pointerEvents: 'none',
           }}>
-            x <b>{active.x}</b> px &nbsp; y <b>{active.y}</b> px
+            x <b>{Math.round(pickPixel.x)}</b> px &nbsp; y <b>{Math.round(pickPixel.y)}</b> px
           </div>
         )}
 
@@ -998,7 +1017,7 @@ export default function FrozenMeasure({
       </div>
 
       {/* ── 확대 중 조작 패널 ───────────────────────── */}
-      {isZooming && (
+      {(pickStep === 1 || pickStep === 3) && (
         <div style={{
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', gap: 6,
@@ -1006,28 +1025,28 @@ export default function FrozenMeasure({
         }}>
           {/* 방향키 */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <Btn onPress={() => nudge(0, -1)}>▲</Btn>
+            <Btn onPress={() => movePick(0, -1)}>▲</Btn>
             <div style={{ display: 'flex', gap: 4 }}>
-              <Btn onPress={() => nudge(-1, 0)}>◀</Btn>
+              <Btn onPress={() => movePick(-1, 0)}>◀</Btn>
               <div style={{ width: 52, height: 52 }} />
-              <Btn onPress={() => nudge(1, 0)}>▶</Btn>
+              <Btn onPress={() => movePick(1, 0)}>▶</Btn>
             </div>
-            <Btn onPress={() => nudge(0, 1)}>▼</Btn>
+            <Btn onPress={() => movePick(0, 1)}>▼</Btn>
           </div>
 
           {/* 확정 / 취소 */}
           <div style={{ display: 'flex', gap: 10, width: '80%' }}>
             <button
-              onPointerDown={cancel}
+              onPointerDown={() => cancelPick()}
               style={btnStyle('#eee', '#333')}
             >
               취소
             </button>
             <button
-              onPointerDown={confirm}
+              onPointerDown={() => confirmPick()}
               style={btnStyle('#2E5F3E', '#fff')}
             >
-              ✓ {step === 1 ? 'P1' : 'P2'} 확정
+              ✓ {pickStep === 1 ? 'P1' : 'P2'} 확정
             </button>
           </div>
         </div>
@@ -1073,6 +1092,40 @@ export default function FrozenMeasure({
         {children}
       </button>
     );
+  }
+
+  // Move pick pixel by dx/dy (image pixels), clamp and recenter view
+  function movePick(dx, dy) {
+    if (!pickPixel || !layoutRef.current) return
+    const l = layoutRef.current
+    const next = clampImg({ x: pickPixel.x + dx, y: pickPixel.y + dy }, l)
+    setPickPixel(next)
+    // center image on new pixel at current zoom
+    centerImagePoint(next, viewRef.current.zoom)
+  }
+
+  function cancelPick() {
+    // zoom out one step
+    resetZoom()
+    setPickPixel(null)
+    setPickStep(s => Math.max(0, s - 1))
+  }
+
+  function confirmPick() {
+    if (!pickPixel) return
+    if (pickStep === 1) {
+      setPickedP1(pickPixel)
+      setPickStep(2)
+      setPickPixel(null)
+    } else if (pickStep === 3) {
+      setPickedP2(pickPixel)
+      setPickStep(4)
+      const nextPts = [pickedP1 || pickPixel, pickPixel]
+      draggingRef.current = null
+      setDraggingIdx(null)
+      localPtsRef.current = nextPts
+      onChangeRef.current?.(nextPts)
+    }
   }
 
   function btnStyle(bg, color) {
