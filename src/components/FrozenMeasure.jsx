@@ -391,7 +391,12 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
       ctx.strokeStyle = 'rgba(255,107,53,0.8)'; ctx.lineWidth = 2
       ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([])
       if (pixelPerMm > 0) {
-        const pxDist = Math.abs(pts[1].x - pts[0].x)
+        //const pxDist = Math.abs(pts[1].x - pts[0].x)
+        const dx = pts[1].x - pts[0].x
+        const dy = pts[1].y - pts[0].y
+        const pxDist = Math.sqrt(dx * dx + dy * dy)
+
+        
         const mm = pxDist / pixelPerMm
         const midX = (dp[0].x + dp[1].x) / 2, midY = (dp[0].y + dp[1].y) / 2
         ctx.save()
