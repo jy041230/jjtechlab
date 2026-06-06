@@ -322,48 +322,106 @@ function zoomAtDisplayPoint(currentView, factor, focus, imgW, imgH, cw, ch) {
 
 function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
   const { displayW, imgW } = layout
-  const scale         = imgW / displayW
-  const halfRegionImg = LOUPE_R / LOUPE_ZOOM * scale
-  const srcW = halfRegionImg * 2
-  const srcH = halfRegionImg * 2
-  const srcX = Math.max(0, Math.min(layout.imgW - srcW, imgPt.x - halfRegionImg))
-  const srcY = Math.max(0, Math.min(layout.imgH - srcH, imgPt.y - halfRegionImg))
+  // Loupe size: 70% of canvas width
+  const diameter = Math.floor(cw * 0.7)
+  const R = Math.floor(diameter / 2)
+  const ZOOM = 10 // requested 10x
 
-  const loupeCX = Math.max(LOUPE_R + 10, Math.min(cw - LOUPE_R - 10, fingerDisp.x))
-  const loupeCY = Math.max(LOUPE_R + 10, fingerDisp.y - LOUPE_ABOVE)
+  // compute source region in image pixels that maps to loupe
+  const scale = imgW / displayW
+  const halfRegionImg = R / ZOOM * scale
+  const srcW = Math.max(1, Math.floor(halfRegionImg * 2))
+  const srcH = Math.max(1, Math.floor(halfRegionImg * 2))
+  const srcX = Math.max(0, Math.min(layout.imgW - srcW, Math.round(imgPt.x - halfRegionImg)))
+  const srcY = Math.max(0, Math.min(layout.imgH - srcH, Math.round(imgPt.y - halfRegionImg)))
 
-  // 원형 클립 + 확대 이미지
+  // Fixed position: top center (avoid finger occlusion)
+  const loupeCX = Math.floor(cw / 2)
+  const loupeCY = Math.floor(R + 20)
+
+  // draw magnified image clipped to circle
   ctx.save()
   ctx.beginPath()
-  ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
+  ctx.arc(loupeCX, loupeCY, R, 0, Math.PI * 2)
   ctx.clip()
   ctx.drawImage(img, srcX, srcY, srcW, srcH,
-    loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
+    loupeCX - R, loupeCY - R, R * 2, R * 2)
   ctx.restore()
 
-  // 테두리
-  ctx.beginPath(); ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
+  // circular border
+  ctx.beginPath(); ctx.arc(loupeCX, loupeCY, R, 0, Math.PI * 2)
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke()
 
-  // 십자선
-  ctx.strokeStyle = '#ff3b30'; ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.moveTo(loupeCX - 26, loupeCY); ctx.lineTo(loupeCX + 26, loupeCY)
-  ctx.moveTo(loupeCX, loupeCY - 26); ctx.lineTo(loupeCX, loupeCY + 26)
+  // draw pixel grid (more visible)
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'
+  ctx.lineWidth = 0.6
+  const pxW = (R * 2) / srcW
+  const pxH = (R * 2) / srcH
+  for (let i = 0; i <= srcW; i++) {
+    const x = loupeCX - R + i * pxW
+    ctx.beginPath(); ctx.moveTo(x, loupeCY - R); ctx.lineTo(x, loupeCY + R); ctx.stroke()
+  }
+  for (let j = 0; j <= srcH; j++) {
+    const y = loupeCY - R + j * pxH
+    ctx.beginPath(); ctx.moveTo(loupeCX - R, y); ctx.lineTo(loupeCX + R, y); ctx.stroke()
+  }
+
+  // extract patch pixels for edge detection and overlay
+  try {
+    const tmp = document.createElement('canvas')
+    tmp.width = srcW; tmp.height = srcH
+    const tctx = tmp.getContext('2d')
+    tctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH)
+    const imageData = tctx.getImageData(0, 0, srcW, srcH)
+    const data = imageData.data
+    const gray = new Float32Array(srcW * srcH)
+    for (let i = 0; i < srcW * srcH; i++) {
+      const pi = i * 4
+      gray[i] = 0.299 * data[pi] + 0.587 * data[pi + 1] + 0.114 * data[pi + 2]
+    }
+
+    const edges = new Uint8Array(srcW * srcH)
+    const thresh = 30
+    for (let y = 1; y < srcH - 1; y++) {
+      for (let x = 1; x < srcW - 1; x++) {
+        const idx = (r, c) => gray[(y + r) * srcW + (x + c)]
+        const gx = -idx(-1, -1) + idx(-1, 1) - 2 * idx(0, -1) + 2 * idx(0, 1) - idx(1, -1) + idx(1, 1)
+        const gy = -idx(-1, -1) - 2 * idx(-1, 0) - idx(-1, 1) + idx(1, -1) + 2 * idx(1, 0) + idx(1, 1)
+        const mag = Math.sqrt(gx * gx + gy * gy)
+        edges[y * srcW + x] = mag > thresh ? 1 : 0
+      }
+    }
+
+    // draw edge overlays (bright yellow stroke, 2px)
+    ctx.strokeStyle = '#FFE500'
+    ctx.lineWidth = 2
+    for (let py = 0; py < srcH; py++) {
+      for (let px = 0; px < srcW; px++) {
+        if (!edges[py * srcW + px]) continue
+        const drawX = loupeCX - R + px * pxW
+        const drawY = loupeCY - R + py * pxH
+        ctx.beginPath()
+        ctx.rect(drawX, drawY, pxW, pxH)
+        ctx.stroke()
+      }
+    }
+  } catch (err) {
+    // silently ignore if imageData operations fail
+  }
+
+  // center crosshair
+  const midX = loupeCX
+  const midY = loupeCY
+  ctx.strokeStyle = 'rgba(0,200,100,0.95)'; ctx.lineWidth = 2
+  ctx.beginPath(); ctx.moveTo(midX - 26, midY); ctx.lineTo(midX + 26, midY)
+  ctx.moveTo(midX, midY - 26); ctx.lineTo(midX, midY + 26)
   ctx.stroke()
 
-  // 루페→손가락 연결선
-  ctx.beginPath()
-  ctx.moveTo(loupeCX, loupeCY + LOUPE_R)
-  ctx.lineTo(fingerDisp.x, fingerDisp.y)
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5
-  ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([])
-
-  // 배율 배지
+  // zoom badge
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
-  ctx.fillRect(loupeCX - LOUPE_R, loupeCY + LOUPE_R - 22, LOUPE_R * 2, 22)
-  ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#ffd166'; ctx.textAlign = 'center'
-  ctx.fillText(`${LOUPE_ZOOM}×`, loupeCX, loupeCY + LOUPE_R - 6)
+  ctx.fillRect(loupeCX - R, loupeCY + R - 26, R * 2, 26)
+  ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#ffd166'; ctx.textAlign = 'center'
+  ctx.fillText(`${ZOOM}×`, loupeCX, loupeCY + R - 8)
 }
 
 // ── 핸들 그리기 (작은 점 + 십자선 / 히트 영역은 별도로 크게) ────────────────
