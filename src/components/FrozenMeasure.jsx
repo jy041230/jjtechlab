@@ -16,7 +16,7 @@ const HANDLE_VISUAL_R = 8
 const HANDLE_ARM      = 22
 const HIT_R           = 56
 const LOUPE_R         = 80
-const LOUPE_ZOOM      = 3.5
+const LOUPE_ZOOM      = 1.5
 const LOUPE_ABOVE     = 165
 const TAP_MAX_PX      = 28
 
