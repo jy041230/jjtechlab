@@ -65,6 +65,21 @@ export default function AnalysisScreen({ onBack }) {
     ? (errorRows.reduce((s, r) => s + Math.abs(Number(r.cameraMm) - Number(r.caliperMm)) / Number(r.caliperMm) * 100, 0) / errorRows.length).toFixed(2)
     : '-'
 
+  // 날짜별 평균 오차율
+  const dateAccMap = {}
+  errorRows.forEach(r => {
+    const d = getRowDate(r)
+    const key = d
+      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      : '날짜없음'
+    if (!dateAccMap[key]) dateAccMap[key] = { sum: 0, count: 0 }
+    dateAccMap[key].sum += Math.abs(Number(r.cameraMm) - Number(r.caliperMm)) / Number(r.caliperMm) * 100
+    dateAccMap[key].count += 1
+  })
+  const dateAccuracy = Object.entries(dateAccMap)
+    .map(([date, v]) => ({ date, avg: (v.sum / v.count).toFixed(2), count: v.count }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   // 토양 조건별 pH 평균
   const soilGroups = groups.map((g, i) => {
     const prefix = g.includes('2년') ? '케이싱2년' : g.includes('1년') ? '케이싱1년' : '대조수목'
@@ -185,6 +200,33 @@ export default function AnalysisScreen({ onBack }) {
               <p>비교 가능 건수: <strong>{errorRows.length}건</strong></p>
               <p>평균 오차율: <strong>{avgErrorRate}%</strong></p>
             </div>
+
+            <p style={styles.sectionTitle}>날짜별 평균 오차율</p>
+            {dateAccuracy.length === 0 ? (
+              <p style={{ color: '#888', textAlign: 'center', padding: 16 }}>날짜 데이터 없음</p>
+            ) : (
+              <div style={styles.tableWrap}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>날짜</th>
+                      <th style={styles.th}>건수</th>
+                      <th style={styles.th}>평균 오차율</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dateAccuracy.map((d, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
+                        <td style={styles.td}>{d.date}</td>
+                        <td style={styles.td}>{d.count}</td>
+                        <td style={{ ...styles.td, color: Number(d.avg) > 5 ? '#e63946' : '#2d6a4f', fontWeight: 700 }}>{d.avg}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <p style={styles.sectionTitle}>개별 측정 오차</p>
             <div style={styles.tableWrap}>
               <table style={styles.table}>
