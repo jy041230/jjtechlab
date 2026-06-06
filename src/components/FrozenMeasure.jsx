@@ -15,7 +15,7 @@ import { avgSidePx } from '../utils/aruco'
 const HANDLE_VISUAL_R = 8    // 핸들 시각 반지름 (canvas px) — 정밀 표시
 const HANDLE_ARM      = 22   // 십자선 팔 길이 (center에서 ±)
 const HIT_R           = 56   // 드래그 히트 반지름 (canvas px) — 터치 편의
-const LOUPE_R         = 100   // 루페 반지름 (canvas px)
+const LOUPE_R         = 80   // 루페 반지름 (canvas px)
 const LOUPE_ZOOM  = 3.5  // 루페 배율
 const LOUPE_ABOVE = 165  // 루페 중심을 터치 위로 올리는 거리 (canvas px)
 const TAP_MAX_PX  = 28   // 현장 휴대폰 터치 흔들림을 탭으로 받아들이는 허용 범위
