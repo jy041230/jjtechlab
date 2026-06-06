@@ -11,6 +11,8 @@
 import { useRef, useEffect, useState } from 'react'
 import styles from './FrozenMeasure.module.css'
 import { avgSidePx } from '../utils/aruco'
+import MeasurementLoupe from './MeasurementLoupe'
+import { useMeasurementLoupe } from './useMeasurementLoupe'
 
 const HANDLE_VISUAL_R = 8    // 핸들 시각 반지름 (canvas px) — 정밀 표시
 const HANDLE_ARM      = 22   // 십자선 팔 길이 (center에서 ±)
@@ -505,6 +507,10 @@ export default function FrozenMeasure({
   const [draggingIdx, setDraggingIdx] = useState(null)
   const [loupeImgPt,  setLoupeImgPt] = useState(null)
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
+  // 루페 훅 (캔버스 확대/픽셀 선택 UI)
+  const { loupeCanvasRef, updateLoupe, nudge, getPoint, LOUPE_SIZE } = useMeasurementLoupe(canvasRef)
+  const [loupeOpen, setLoupeOpen] = useState(false)
+  const [loupePt, setLoupePt] = useState({ x: 0, y: 0 })
 
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
@@ -845,9 +851,10 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return  // 이미 2점 확정
 
-      const newPts = [...currentPts, imgPt]
-      localPtsRef.current = newPts
-      onChangeRef.current?.(newPts)
+      // 탭한 위치로 루페를 열어 사용자가 픽셀 단위로 조정하고 확정하도록 함
+      updateLoupe(imgPt.x, imgPt.y)
+      setLoupePt({ x: Math.round(imgPt.x), y: Math.round(imgPt.y) })
+      setLoupeOpen(true)
     }
 
     // ── Mouse (데스크톱 테스트) ────────────────────────────────────────────
@@ -895,10 +902,13 @@ export default function FrozenMeasure({
       const imgPt     = clampImg(dispToImg(e.offsetX, e.offsetY, layout), layout)
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return
-      const newPts = [...currentPts, imgPt]
-      localPtsRef.current = newPts
-      onChangeRef.current?.(newPts)
+
+      updateLoupe(imgPt.x, imgPt.y)
+      setLoupePt({ x: Math.round(imgPt.x), y: Math.round(imgPt.y) })
+      setLoupeOpen(true)
     }
+
+    
 
     canvas.addEventListener('touchstart', onTouchStart, { passive: false })
     canvas.addEventListener('touchmove',  onTouchMove,  { passive: false })
@@ -918,6 +928,25 @@ export default function FrozenMeasure({
   }, [])  // 마운트 1회 — 내부에서 ref로 최신값 참조
 
   const isPlacing = tapPhase === 'placing_points'
+
+  // 루페 UI 제어: ±1픽셀 조정, 확인/취소 (컴포넌트 범위)
+  function handleLoupeNudge(dx, dy) {
+    nudge(dx, dy)
+    setLoupePt(getPoint())
+  }
+
+  function handleLoupeConfirm() {
+    const pt = getPoint()
+    const currentPts = localPtsRef.current
+    const newPts = [...currentPts, pt]
+    localPtsRef.current = newPts
+    onChangeRef.current?.(newPts)
+    setLoupeOpen(false)
+  }
+
+  function handleLoupeCancel() {
+    setLoupeOpen(false)
+  }
 
   return (
     <div ref={containerRef} className={styles.container}>
@@ -993,6 +1022,18 @@ export default function FrozenMeasure({
             ? '확대 상태에서 반대쪽 끝(P2)을 탭하세요'
             : 'P1·P2를 줄기 양쪽 끝에 맞춘 뒤 측정을 누르세요'}
         </div>
+      )}
+      {/* 루페 팝업(탭 시 열림) */}
+      {loupeOpen && (
+        <MeasurementLoupe
+          loupeCanvasRef={loupeCanvasRef}
+          loupeSize={LOUPE_SIZE}
+          pixelCoord={loupePt}
+          onNudge={handleLoupeNudge}
+          onConfirm={handleLoupeConfirm}
+          onCancel={handleLoupeCancel}
+          pointLabel={localPtsRef.current.length === 0 ? '시작점' : '끝점'}
+        />
       )}
     </div>
   )
