@@ -445,7 +445,8 @@ export default function FrozenMeasure({
     step, p1, p2, active, cssTransform, distMm,
     isZooming, stepLabel,
     handleTap, nudge, confirm, cancel, reset,
-  } = useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone: (mm) => { if (typeof onPointsChange === 'function') onPointsChange(mm) } })
+  } = useCanvasZoomMeasure({ canvasRef, wrapperRef, layoutRef, pixelPerMm, onDone: (mm) => { if (typeof onPointsChange === 'function') onPointsChange(mm) } })
+
 
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])

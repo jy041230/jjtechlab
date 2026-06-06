@@ -6,7 +6,7 @@ import { useState, useRef, useCallback } from 'react';
 
 const ZOOM = 3;
 
-export function useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone }) {
+export function useCanvasZoomMeasure({ canvasRef, wrapperRef, layoutRef, pixelPerMm, onDone }) {
   // step: 0=P1탭대기 | 1=P1확대중 | 2=P2탭대기 | 3=P2확대중 | 4=완료
   const [step, setStep]           = useState(0);
   const [p1, setP1]               = useState(null);   // { x, y } 내부 픽셀
@@ -26,9 +26,18 @@ export function useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone
     const scaleX = canvas.width  / canvas.offsetWidth;
     const scaleY = canvas.height / canvas.offsetHeight;
 
-    // 내부 픽셀 → CSS 표시 좌표
-    const cx = pixelX / scaleX;
-    const cy = pixelY / scaleY;
+    // Use layoutRef to convert image pixel -> display (canvas) coords then to CSS pixels
+    const l = layoutRef?.current
+    let dispX = pixelX
+    let dispY = pixelY
+    if (l && Number.isFinite(l.imgW) && Number.isFinite(l.displayW)) {
+      dispX = l.offsetX + (pixelX / l.imgW) * l.displayW
+      dispY = l.offsetY + (pixelY / l.imgH) * l.displayH
+    }
+
+    // canvas logical -> CSS pixels
+    const cx = dispX / scaleX;
+    const cy = dispY / scaleY;
 
     // transform-origin:0 0 기준으로 (cx,cy)가 wrapper 중앙에 오게
     const tx = ww / (2 * ZOOM) - cx;
@@ -49,13 +58,22 @@ export function useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone
     const scaleX = canvas.width  / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const px = Math.round(((touch.clientX ?? touch.pageX) - rect.left) * scaleX);
-    const py = Math.round(((touch.clientY ?? touch.pageY) - rect.top)  * scaleY);
+    const canvasX = (((touch.clientX ?? touch.pageX) - rect.left) * (canvas.width  / rect.width));
+    const canvasY = (((touch.clientY ?? touch.pageY) - rect.top)  * (canvas.height / rect.height));
 
-    console.log('handleTap called', px, py)
+    // Convert canvas/display coords -> image pixel coords using layoutRef
+    const l = layoutRef?.current
+    let imgX = Math.round(canvasX)
+    let imgY = Math.round(canvasY)
+    if (l && Number.isFinite(l.imgW) && Number.isFinite(l.displayW)) {
+      imgX = Math.round(((canvasX - l.offsetX) / l.displayW) * l.imgW)
+      imgY = Math.round(((canvasY - l.offsetY) / l.displayH) * l.imgH)
+    }
 
-    setActive({ x: px, y: py });
-    setCss(buildTransform(px, py));
+    console.log('handleTap called', imgX, imgY)
+
+    setActive({ x: imgX, y: imgY });
+    setCss(buildTransform(imgX, imgY));
     setStep(s => s + 1); // 0→1 또는 2→3
   }, [step, canvasRef, buildTransform]);
 
