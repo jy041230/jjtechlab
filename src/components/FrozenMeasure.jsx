@@ -415,6 +415,7 @@ export default function FrozenMeasure({
   const touchStartRef = useRef(null)   // { x, y, moved: bool }
   const mouseDownRef  = useRef(null)   // { x, y }
   const wrapperRef = useRef(null)
+  const miniRef = useRef(null)
   const panStartRef = useRef(null)
   const viewRef = useRef({ zoom: 1, panX: 0, panY: 0 })
   const sizeRef = useRef({ w: frozenW, h: frozenH })
@@ -434,6 +435,57 @@ export default function FrozenMeasure({
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
   useEffect(() => { onChangeRef.current = onPointsChange }, [onPointsChange])
+  useEffect(() => {
+    // draw minimap (thumbnail + viewport rect) when zooming
+    const mini = miniRef.current
+    const img = imgRef.current
+    if (!mini || !img) return
+    const draw = () => {
+      const layout = layoutRef.current
+      const { w: imgW, h: imgH } = sizeRef.current
+      const cw = mini.clientWidth
+      const ch = mini.clientHeight
+      mini.width = cw
+      mini.height = ch
+      const ctx = mini.getContext('2d')
+      if (!ctx) return
+      // draw thumbnail fit-to-box
+      ctx.clearRect(0, 0, cw, ch)
+      // preserve aspect inside square
+      const ratio = imgW / imgH
+      let dw = cw, dh = ch, dx = 0, dy = 0
+      if (ratio > 1) {
+        dh = Math.round(cw / ratio)
+        dy = Math.round((ch - dh) / 2)
+      } else {
+        dw = Math.round(ch * ratio)
+        dx = Math.round((cw - dw) / 2)
+      }
+      ctx.drawImage(img, 0, 0, imgW, imgH, dx, dy, dw, dh)
+
+      // draw viewport rect corresponding to current layout/view
+      if (layout) {
+        const visibleTL = dispToImg(0, 0, layout)
+        const visibleBR = dispToImg((layout.displayW > layout.imgW ? layout.imgW : layout.displayW) + layout.offsetX, (layout.displayH > layout.imgH ? layout.imgH : layout.displayH) + layout.offsetY, layout)
+        const vx0 = visibleTL.x, vy0 = visibleTL.y
+        const vx1 = visibleBR.x, vy1 = visibleBR.y
+        const sx = dx + (vx0 / imgW) * dw
+        const sy = dy + (vy0 / imgH) * dh
+        const sw = Math.max(2, (Math.max(0, vx1 - vx0) / imgW) * dw)
+        const sh = Math.max(2, (Math.max(0, vy1 - vy0) / imgH) * dh)
+        ctx.strokeStyle = 'rgba(255,50,50,0.9)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(sx + 0.5, sy + 0.5, sw, sh)
+      }
+    }
+
+    // redraw on animation frame for responsiveness
+    let raf = 0
+    const runner = () => { draw(); raf = requestAnimationFrame(runner) }
+    runner()
+    return () => cancelAnimationFrame(raf)
+  }, [isZooming])
+
   useEffect(() => {
     localPtsRef.current = points
     if (!points.length) {
@@ -914,6 +966,19 @@ export default function FrozenMeasure({
             x <b>{active.x}</b> px &nbsp; y <b>{active.y}</b> px
           </div>
         )}
+
+        {/* minimap */}
+        {isZooming && active && (
+          <canvas
+            ref={miniRef}
+            style={{
+              position: 'absolute', right: 10, bottom: 10,
+              width: 96, height: 96, borderRadius: 8,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+              background: '#fff', pointerEvents: 'none', zIndex: 45,
+            }}
+          />
+        )}
       </div>
 
       {/* ── 확대 중 조작 패널 ───────────────────────── */}
@@ -955,6 +1020,9 @@ export default function FrozenMeasure({
       {/* ── 하단 버튼 (기존 P1·P2 다시찍기 / 측정 / 닫기) ─ */}
       {!isZooming && (
         <div style={{ display: 'flex', gap: 8, padding: '8px 12px' }}>
+          <button onPointerDown={() => autoFindStickerPoints()} style={btnStyle('#f0f0f0', '#333')}>
+            색깔 스티커로 자동 감지
+          </button>
           <button onPointerDown={reset} style={btnStyle('#f0f0f0', '#333')}>
             P1·P2 다시찍기
           </button>
