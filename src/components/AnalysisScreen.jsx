@@ -227,7 +227,7 @@ export default function AnalysisScreen({ onBack }) {
               </div>
             )}
 
-            <p style={styles.sectionTitle}>개별 측정 오차</p>
+            <p style={styles.sectionTitle}>개별 측정 오차 (전체 {errorRows.length}건)</p>
             <div style={styles.tableWrap}>
               <table style={styles.table}>
                 <thead>
@@ -239,7 +239,7 @@ export default function AnalysisScreen({ onBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {errorRows.slice(0, 20).map((r, i) => {
+                  {errorRows.map((r, i) => {
                     const err = Math.abs(Number(r.cameraMm) - Number(r.caliperMm))
                     const rate = (err / Number(r.caliperMm) * 100).toFixed(1)
                     return (
