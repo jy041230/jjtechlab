@@ -131,8 +131,8 @@ export function useMeasurementLoupe(srcCanvasRef) {
   const pointRef = useRef({ x: 0, y: 0 }); // 현재 선택 픽셀 좌표
 
   // 루페 업데이트
-  const updateLoupe = useCallback((x, y) => {
-    const srcCanvas = srcCanvasRef.current;
+  const updateLoupe = useCallback((x, y, srcCanvasOverride) => {
+    const srcCanvas = srcCanvasOverride || srcCanvasRef.current;
     const loupeCanvas = loupeCanvasRef.current;
     if (!srcCanvas || !loupeCanvas) return;
 
@@ -145,9 +145,9 @@ export function useMeasurementLoupe(srcCanvasRef) {
   }, [srcCanvasRef]);
 
   // ±1픽셀 미세 조정
-  const nudge = useCallback((dx, dy) => {
+  const nudge = useCallback((dx, dy, srcCanvasOverride) => {
     const { x, y } = pointRef.current;
-    updateLoupe(x + dx, y + dy);
+    updateLoupe(x + dx, y + dy, srcCanvasOverride);
   }, [updateLoupe]);
 
   // 현재 선택 좌표 반환

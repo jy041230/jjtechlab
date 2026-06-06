@@ -511,6 +511,7 @@ export default function FrozenMeasure({
   const { loupeCanvasRef, updateLoupe, nudge, getPoint, LOUPE_SIZE } = useMeasurementLoupe(canvasRef)
   const [loupeOpen, setLoupeOpen] = useState(false)
   const [loupePt, setLoupePt] = useState({ x: 0, y: 0 })
+  const srcImageCanvasRef = useRef(null)
 
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
@@ -852,7 +853,19 @@ export default function FrozenMeasure({
       if (currentPts.length >= 2) return  // 이미 2점 확정
 
       // 탭한 위치로 루페를 열어 사용자가 픽셀 단위로 조정하고 확정하도록 함
-      updateLoupe(imgPt.x, imgPt.y)
+      // ensure offscreen canvas has image at native size, then pass as override
+      if (imgRef.current) {
+        if (!srcImageCanvasRef.current) srcImageCanvasRef.current = document.createElement('canvas')
+        const sc = srcImageCanvasRef.current
+        sc.width = sizeRef.current.w
+        sc.height = sizeRef.current.h
+        const sctx = sc.getContext('2d')
+        sctx.clearRect(0, 0, sc.width, sc.height)
+        sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
+        updateLoupe(imgPt.x, imgPt.y, sc)
+      } else {
+        updateLoupe(imgPt.x, imgPt.y)
+      }
       setLoupePt({ x: Math.round(imgPt.x), y: Math.round(imgPt.y) })
       setLoupeOpen(true)
     }
@@ -903,7 +916,18 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return
 
-      updateLoupe(imgPt.x, imgPt.y)
+      if (imgRef.current) {
+        if (!srcImageCanvasRef.current) srcImageCanvasRef.current = document.createElement('canvas')
+        const sc = srcImageCanvasRef.current
+        sc.width = sizeRef.current.w
+        sc.height = sizeRef.current.h
+        const sctx = sc.getContext('2d')
+        sctx.clearRect(0, 0, sc.width, sc.height)
+        sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
+        updateLoupe(imgPt.x, imgPt.y, sc)
+      } else {
+        updateLoupe(imgPt.x, imgPt.y)
+      }
       setLoupePt({ x: Math.round(imgPt.x), y: Math.round(imgPt.y) })
       setLoupeOpen(true)
     }
@@ -931,7 +955,18 @@ export default function FrozenMeasure({
 
   // 루페 UI 제어: ±1픽셀 조정, 확인/취소 (컴포넌트 범위)
   function handleLoupeNudge(dx, dy) {
-    nudge(dx, dy)
+    if (srcImageCanvasRef.current) {
+      // ensure current image drawn
+      const sc = srcImageCanvasRef.current
+      sc.width = sizeRef.current.w
+      sc.height = sizeRef.current.h
+      const sctx = sc.getContext('2d')
+      sctx.clearRect(0, 0, sc.width, sc.height)
+      sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
+      nudge(dx, dy, sc)
+    } else {
+      nudge(dx, dy)
+    }
     setLoupePt(getPoint())
   }
 
