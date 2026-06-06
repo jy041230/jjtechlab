@@ -232,6 +232,7 @@ export default function AnalysisScreen({ onBack }) {
               <table style={styles.table}>
                 <thead>
                   <tr>
+                    <th style={styles.th}>날짜</th>
                     <th style={styles.th}>수목ID</th>
                     <th style={styles.th}>카메라</th>
                     <th style={styles.th}>캘리퍼스</th>
@@ -242,8 +243,13 @@ export default function AnalysisScreen({ onBack }) {
                   {errorRows.map((r, i) => {
                     const err = Math.abs(Number(r.cameraMm) - Number(r.caliperMm))
                     const rate = (err / Number(r.caliperMm) * 100).toFixed(1)
+                    const rd = getRowDate(r)
+                    const dStr = rd
+                      ? `${String(rd.getMonth() + 1).padStart(2, '0')}-${String(rd.getDate()).padStart(2, '0')}`
+                      : '-'
                     return (
                       <tr key={i} style={{ background: i % 2 === 0 ? '#f9f9f9' : '#fff' }}>
+                        <td style={styles.td}>{dStr}</td>
                         <td style={styles.td}>{r.treeId}</td>
                         <td style={styles.td}>{Number(r.cameraMm).toFixed(1)}</td>
                         <td style={styles.td}>{Number(r.caliperMm).toFixed(1)}</td>
