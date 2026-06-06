@@ -16,7 +16,7 @@ const HANDLE_VISUAL_R = 8
 const HANDLE_ARM      = 22
 const HIT_R           = 56
 const LOUPE_R         = 80
-const LOUPE_ZOOM      = 2.5
+const LOUPE_ZOOM      = 1.5
 const LOUPE_ABOVE     = 165
 const TAP_MAX_PX      = 28
 
@@ -294,7 +294,7 @@ function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
   ctx.beginPath()
   ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
   ctx.clip()
-  ctx.filter = 'brightness(1.3) contrast(2.5) saturate(1.4)'
+  ctx.filter = 'brightness(1.3) contrast(1.6) saturate(1.2)'
   ctx.drawImage(img, srcX, srcY, srcW, srcH,
     loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
   ctx.filter = 'none'
