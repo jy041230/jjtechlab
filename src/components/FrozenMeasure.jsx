@@ -294,7 +294,7 @@ function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
   ctx.beginPath()
   ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
   ctx.clip()
-  ctx.filter = 'brightness(1.4) contrast(1.3)'
+  ctx.filter = 'brightness(1.3) contrast(2.5) saturate(1.4)'
   ctx.drawImage(img, srcX, srcY, srcW, srcH,
     loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
   ctx.filter = 'none'
