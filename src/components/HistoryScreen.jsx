@@ -204,7 +204,8 @@ function EventCard({ event, expanded, onToggle, fmtTs, onSaved }) {
 
   const noteIcon = event.note === '작업일지' ? '📝'
     : event.note === '토양측정' ? '🌱'
-      : event.event_type === '관찰' ? '📏' : '📋'
+      : (event.note && event.note.includes('캘리퍼스')) ? '📐'
+      : event.event_type === '관찰' ? '📷' : '📋'
 
   return (
     <div style={{
