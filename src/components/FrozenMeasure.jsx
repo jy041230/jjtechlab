@@ -720,7 +720,7 @@ export default function FrozenMeasure({
       x: Math.max(0, Math.min(...xs) - markerSide * 1.15),
       y: Math.max(0, (Math.min(...ys) + Math.max(...ys)) / 2),
     }
-    setTimeout(() => centerImagePoint(target, 2.25), 60)
+    setTimeout(() => centerImagePoint(target, 1.8), 60)///////////////////////////////////////////
   }, [imgReady, markerCorners, points.length, frozenSrc])
 
   // 터치·마우스 이벤트 (직접 DOM)
