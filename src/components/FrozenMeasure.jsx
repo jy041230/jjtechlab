@@ -316,7 +316,7 @@ function drawHandle(ctx, dispX, dispY, label, isDragging) {
 
 // ── 메인 캔버스 렌더 ─────────────────────────────────────────────────────────
 
-function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, draggingIdx) {
+function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, draggingIdx, activePixel, zooming) {
   const cw  = canvas.width
   const ch  = canvas.height
   const ctx = canvas.getContext('2d')
@@ -389,7 +389,22 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
     })
   }
 
-  // (in-canvas zoom replaces popup loupe)
+  // draw crosshair for active pixel when zooming
+  if (zooming && activePixel && layout) {
+    const dp = imgToDisp(activePixel.x, activePixel.y, layout)
+    const L = 40 // total length
+    const half = L / 2
+    ctx.save()
+    ctx.strokeStyle = '#FF3300'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(dp.x - half, dp.y)
+    ctx.lineTo(dp.x + half, dp.y)
+    ctx.moveTo(dp.x, dp.y - half)
+    ctx.lineTo(dp.x, dp.y + half)
+    ctx.stroke()
+    ctx.restore()
+  }
 }
 
 // ── FrozenMeasure 컴포넌트 ───────────────────────────────────────────────────
@@ -538,8 +553,8 @@ export default function FrozenMeasure({
           displayPts = draggingRef.current !== null ? localPtsRef.current : points
         }
         redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
-          displayPts, pixelPerMm, tapPhase, draggingIdx)
-      }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view])
+          displayPts, pixelPerMm, tapPhase, draggingIdx, active, isZooming)
+      }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view, active, isZooming])
 
   function updateView(nextView) {
     const canvas = canvasRef.current
