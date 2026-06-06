@@ -10,6 +10,7 @@
  */
 import { useRef, useEffect, useState } from 'react'
 import styles from './FrozenMeasure.module.css'
+import { useCanvasZoomMeasure } from './useCanvasZoomMeasure'
 import { avgSidePx } from '../utils/aruco'
 // removed MeasurementLoupe and useMeasurementLoupe; using in-canvas CSS scale zoom flow
 
@@ -249,18 +250,6 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
 
   return blobs.sort((a, b) => b.count - a.count)
 }
-        <canvas
-          ref={canvasRef}
-          className={styles.canvas}
-          style={{
-            cursor: isPlacing
-              ? (draggingIdx !== null ? 'grabbing'
-                 : points.length < 2  ? 'crosshair' : 'grab')
-              : 'default',
-            transformOrigin: '0 0',
-            transform: zoomState.active ? `translate(${zoomState.tx}px, ${zoomState.ty}px) scale(${zoomState.scale})` : undefined,
-          }}
-        />
       for (const p2 of p2Candidates) {
         const dx = p2.x - p1.x
         const dy = Math.abs(p2.y - p1.y)
@@ -446,6 +435,7 @@ export default function FrozenMeasure({
   const onChangeRef  = useRef(onPointsChange)
   const touchStartRef = useRef(null)   // { x, y, moved: bool }
   const mouseDownRef  = useRef(null)   // { x, y }
+  const wrapperRef = useRef(null)
   const panStartRef = useRef(null)
   const viewRef = useRef({ zoom: 1, panX: 0, panY: 0 })
   const sizeRef = useRef({ w: frozenW, h: frozenH })
@@ -453,10 +443,14 @@ export default function FrozenMeasure({
 
   const [imgReady,    setImgReady]    = useState(false)
   const [draggingIdx, setDraggingIdx] = useState(null)
-  // in-canvas zoom state for pixel-level picking
-  const [zoomState, setZoomState] = useState({ active: false, picking: null, imgX: 0, imgY: 0, scale: 8, tx: 0, ty: 0 })
   const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
-  // zoomState controls in-canvas CSS transform for pixel nudging
+
+  // useCanvasZoomMeasure hook
+  const {
+    step, p1, p2, active, cssTransform, distMm,
+    isZooming, stepLabel,
+    handleTap, nudge, confirm, cancel, reset,
+  } = useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone: (mm) => { if (typeof onPointsChange === 'function') onPointsChange(mm) } })
 
   // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
@@ -503,8 +497,15 @@ export default function FrozenMeasure({
       return
     }
     layoutRef.current = computeLayout(frozenW, frozenH, cw, ch, safeView)
-    // 드래그 중: localPtsRef 사용, 아닐 때: props.points 사용
-        const displayPts = draggingRef.current !== null ? localPtsRef.current : points
+    // Draw points from zoom hook when available, otherwise drag/local or props
+        let displayPts = null
+        if (p1 || p2) {
+          displayPts = []
+          if (p1) displayPts.push(p1)
+          if (p2) displayPts.push(p2)
+        } else {
+          displayPts = draggingRef.current !== null ? localPtsRef.current : points
+        }
         redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
           displayPts, pixelPerMm, tapPhase, draggingIdx)
       }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view])
@@ -603,7 +604,6 @@ export default function FrozenMeasure({
     ]
     draggingRef.current = null
     setDraggingIdx(null)
-    setLoupeImgPt(null)
     localPtsRef.current = nextPts
     onChangeRef.current?.(nextPts)
   }
@@ -637,7 +637,6 @@ export default function FrozenMeasure({
     ]
     draggingRef.current = null
     setDraggingIdx(null)
-    setLoupeImgPt(null)
     localPtsRef.current = nextPts
     onChangeRef.current?.(nextPts)
   }
@@ -660,51 +659,7 @@ export default function FrozenMeasure({
   }
 
   // --- in-canvas zoom helpers for pixel-precise picking ---
-  function computeCanvasTransformForImg(imgX, imgY, scale) {
-    const container = containerRef.current
-    const layout = layoutRef.current
-    if (!container || !layout) return { tx: 0, ty: 0 }
-    const cw = container.clientWidth
-    const ch = container.clientHeight
-    const disp = imgToDisp(imgX, imgY, layout)
-    // transform: translate(tx,ty) scale(scale) with transformOrigin 0 0
-    // final position of point = (disp + tx) * scale -> want at center (cw/2, ch/2)
-    const tx = (cw / 2) / scale - disp.x
-    const ty = (ch / 2) / scale - disp.y
-    return { tx, ty }
-  }
-
-  function enterZoomAt(imgX, imgY) {
-    const scale = 8
-    const { tx, ty } = computeCanvasTransformForImg(imgX, imgY, scale)
-    setZoomState({ active: true, picking: localPtsRef.current.length, imgX: Math.round(imgX), imgY: Math.round(imgY), scale, tx, ty })
-  }
-
-  function nudgeZoom(dx, dy) {
-    setZoomState(prev => {
-      if (!prev.active) return prev
-      const { w, h } = sizeRef.current
-      const nx = Math.max(0, Math.min(w - 1, prev.imgX + dx))
-      const ny = Math.max(0, Math.min(h - 1, prev.imgY + dy))
-      const { tx, ty } = computeCanvasTransformForImg(nx, ny, prev.scale)
-      return { ...prev, imgX: nx, imgY: ny, tx, ty }
-    })
-  }
-
-  function confirmZoom() {
-    setZoomState(prev => {
-      if (!prev.active) return { ...prev, active: false }
-      const pt = { x: prev.imgX, y: prev.imgY }
-      const current = [...localPtsRef.current, pt]
-      localPtsRef.current = current
-      onChangeRef.current?.(current)
-      return { ...prev, active: false }
-    })
-  }
-
-  function cancelZoom() {
-    setZoomState(prev => ({ ...prev, active: false }))
-  }
+  
 
   useEffect(() => {
     if (!imgReady || !markerCorners?.length || points.length !== 0) return
@@ -770,7 +725,7 @@ export default function FrozenMeasure({
           draggingRef.current = hit
           setDraggingIdx(hit)
           const imgPt = localPtsRef.current[hit]
-          // removed loupe-on-drag behavior
+            // removed loupe-on-drag behavior
           panStartRef.current = null
         }
       }
@@ -797,7 +752,6 @@ export default function FrozenMeasure({
       const newPts = [...localPtsRef.current]
       newPts[draggingRef.current] = imgPt
       localPtsRef.current = newPts
-      setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
       onChangeRef.current?.(newPts)
     }
 
@@ -845,7 +799,7 @@ export default function FrozenMeasure({
       if (currentPts.length >= 2) return  // 이미 2점 확정
 
       // 탭한 위치에서 in-canvas 8× 확대 모드로 진입하여 픽셀 단위 조정
-      enterZoomAt(imgPt.x, imgPt.y)
+      handleTap(touch)
     }
 
     // ── Mouse (데스크톱 테스트) ────────────────────────────────────────────
@@ -872,7 +826,6 @@ export default function FrozenMeasure({
       const newPts = [...localPtsRef.current]
       newPts[draggingRef.current] = imgPt
       localPtsRef.current = newPts
-      setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
       onChangeRef.current?.(newPts)
     }
 
@@ -882,7 +835,6 @@ export default function FrozenMeasure({
       if (draggingRef.current !== null) {
         draggingRef.current = null
         setDraggingIdx(null)
-        setLoupeImgPt(null)
         return
       }
       if (!startPos) return
@@ -894,8 +846,8 @@ export default function FrozenMeasure({
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return
 
-      // enter in-canvas zoom mode
-      enterZoomAt(imgPt.x, imgPt.y)
+      // enter in-canvas zoom mode via hook
+      handleTap(e)
     }
 
     
@@ -919,104 +871,147 @@ export default function FrozenMeasure({
 
   const isPlacing = tapPhase === 'placing_points'
 
-  // Zoom controls: nudge, confirm, cancel
-  function handleNudge(dx, dy) { nudgeZoom(dx, dy) }
-  function handleConfirm() { confirmZoom() }
-  function handleCancel() { cancelZoom() }
+  // Zoom control handlers are provided by useCanvasZoomMeasure hook
 
   return (
-    <div ref={containerRef} className={styles.container}>
-      <canvas
-        ref={canvasRef}
-        className={styles.canvas}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+      {/* ── 안내 텍스트 ─────────────────────────────── */}
+      <p style={{
+        textAlign: 'center', margin: '6px 0',
+        fontSize: 15, fontWeight: 'bold',
+        color: step === 4 ? '#2E5F3E' : '#333',
+      }}>
+        {stepLabel}
+      </p>
+
+      {/* ── 캔버스 래퍼 (overflow:hidden 으로 확대 클립) ─ */}
+      <div
+        ref={wrapperRef}
         style={{
-          cursor: isPlacing
-            ? (draggingIdx !== null ? 'grabbing'
-               : points.length < 2  ? 'crosshair' : 'grab')
-            : 'default',
+          flex: 1,
+          overflow: 'hidden',
+          position: 'relative',
+          background: '#000',
+          touchAction: 'none',
         }}
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            display: 'block',
+            transformOrigin: '0 0',
+            transform: cssTransform,
+            transition: isZooming
+              ? 'transform 0.25s ease'
+              : 'transform 0.2s ease',
+            cursor: (!isZooming) ? 'crosshair' : 'default',
+          }}
+          onTouchStart={!isZooming ? handleTap : undefined}
+          onClick={!isZooming ? handleTap : undefined}
+        />
 
-      {isPlacing && (
-        <div className={styles.zoomControls}>
-          <span className={styles.zoomTitle}>
-            {points.length < 2 ? '먼저 확대' : '확대 조정'}
-          </span>
-          <button type="button" onClick={() => zoomBy(1.6)} aria-label="확대">확대</button>
-          <button type="button" onClick={() => zoomBy(1 / 1.6)} aria-label="축소">축소</button>
-          <button type="button" onClick={resetZoom} aria-label="원래 크기">1×</button>
-          <button
-            type="button"
-            className={styles.stickerFitBtn}
-            hidden aria-hidden="true" onClick={autoFindStickerPoints}
-            aria-label="색깔 스티커로 P1 P2 자동찾기"
-          >
-            스티커<br />찾기
-          </button>
-          {points.length === 2 && (
+        {/* ── 확대 중 좌표 표시 ─────────────────────── */}
+        {isZooming && active && (
+          <div style={{
+            position: 'absolute', top: 8, left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.65)',
+            color: '#fff', borderRadius: 8,
+            padding: '4px 14px', fontSize: 13,
+            pointerEvents: 'none',
+          }}>
+            x <b>{active.x}</b> px &nbsp; y <b>{active.y}</b> px
+          </div>
+        )}
+      </div>
+
+      {/* ── 확대 중 조작 패널 ───────────────────────── */}
+      {isZooming && (
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 6,
+          padding: '10px 0', background: '#F6FAF7',
+        }}>
+          {/* 방향키 */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <Btn onPress={() => nudge(0, -1)}>▲</Btn>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <Btn onPress={() => nudge(-1, 0)}>◀</Btn>
+              <div style={{ width: 52, height: 52 }} />
+              <Btn onPress={() => nudge(1, 0)}>▶</Btn>
+            </div>
+            <Btn onPress={() => nudge(0, 1)}>▼</Btn>
+          </div>
+
+          {/* 확정 / 취소 */}
+          <div style={{ display: 'flex', gap: 10, width: '80%' }}>
             <button
-              type="button"
-              className={styles.autoFitBtn}
-              hidden aria-hidden="true" onClick={autoFitStemEdges}
-              aria-label="색상으로 줄기 경계 자동맞춤"
+              onPointerDown={cancel}
+              style={btnStyle('#eee', '#333')}
             >
-              자동<br />맞춤
+              취소
             </button>
-          )}
+            <button
+              onPointerDown={confirm}
+              style={btnStyle('#2E5F3E', '#fff')}
+            >
+              ✓ {step === 1 ? 'P1' : 'P2'} 확정
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 마커 인식 실패 오버레이 */}
-      {tapPhase === 'no_marker' && (
-        <div className={styles.noMarkerOverlay}>
-          <span className={styles.noMarkerIcon}>🔍</span>
-          <p>ArUco 마커를 인식하지 못했습니다</p>
-          <p className={styles.noMarkerSub}>마커 전체가 보이도록 다시 촬영해 주세요</p>
-          {debugInfo && (
-            <div className={styles.debugBox}>
-              <p>사각형 후보: <strong>{debugInfo.candidates}</strong>개</p>
-              <p className={styles.debugDicts}>
-                시도 사전: {[...new Set((debugInfo.triedVariants ?? []).map(v => v.split('/')[0]))].join(' · ')}
-              </p>
-              {debugInfo.candidates === 0 && (
-                <p className={styles.debugTip}>→ 마커가 너무 작거나 흐릿합니다. 더 가까이 촬영하세요.</p>
-              )}
-              {debugInfo.candidates > 0 && (
-                <p className={styles.debugTip}>→ 사전 불일치 가능. 마커 ID·사전을 확인하세요.</p>
-              )}
+      {/* ── 하단 버튼 (기존 P1·P2 다시찍기 / 측정 / 닫기) ─ */}
+      {!isZooming && (
+        <div style={{ display: 'flex', gap: 8, padding: '8px 12px' }}>
+          <button onPointerDown={reset} style={btnStyle('#f0f0f0', '#333')}>
+            P1·P2 다시찍기
+          </button>
+          {step === 4 && distMm && (
+            <div style={{
+              flex: 1, textAlign: 'center',
+              fontSize: 18, fontWeight: 'bold', color: '#2E5F3E',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {distMm} mm
             </div>
           )}
-        </div>
-      )}
-
-      {/* 탭·드래그 안내 힌트 */}
-      {isPlacing && draggingIdx === null && (
-        <div className={`${styles.hint} ${styles.hintTap}`}>
-          {points.length === 0
-            ? '색깔 스티커를 붙였으면 스티커찾기를 누르세요'
-            : points.length === 1
-            ? '확대 상태에서 반대쪽 끝(P2)을 탭하세요'
-            : 'P1·P2를 줄기 양쪽 끝에 맞춘 뒤 측정을 누르세요'}
-        </div>
-      )}
-      {/* in-canvas zoom controls */}
-      {zoomState.active && (
-        <div className={styles.pixelZoomOverlay}>
-          <div className={styles.zoomArrows}>
-            <button onClick={() => handleNudge(0, -1)}>▲</button>
-            <div>
-              <button onClick={() => handleNudge(-1, 0)}>◀</button>
-              <button onClick={() => handleNudge(1, 0)}>▶</button>
-            </div>
-            <button onClick={() => handleNudge(0, 1)}>▼</button>
-          </div>
-          <div className={styles.zoomConfirmRow}>
-            <button className={styles.cancelBtn} onClick={handleCancel}>취소</button>
-            <button className={styles.confirmBtn} onClick={handleConfirm}>P{zoomState.picking === 0 ? '1' : '2'} 확정</button>
-          </div>
         </div>
       )}
     </div>
   )
+
+  // ── 재사용 버튼 컴포넌트 ─────────────────────────────────────────
+  function Btn({ onPress, children }) {
+    return (
+      <button
+        onPointerDown={onPress}
+        style={{
+          width: 52, height: 52, fontSize: 20,
+          background: '#EAF3ED', border: '1px solid #B2D4BC',
+          borderRadius: 10, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          userSelect: 'none', WebkitUserSelect: 'none',
+          touchAction: 'manipulation',
+        }}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  function btnStyle(bg, color) {
+    return {
+      flex: 1, padding: '11px 0',
+      background: bg, color,
+      border: 'none', borderRadius: 10,
+      fontSize: 15, fontWeight: 'bold',
+      cursor: 'pointer', touchAction: 'manipulation',
+    };
+  }
 }
 
