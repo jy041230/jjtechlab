@@ -890,6 +890,17 @@ export default function FrozenMeasure({
           }}
         />
 
+        {/* 캔버스 중앙에 확대 포인터 (스케일링과 무관하게 항상 화면 중앙에 표시) */}
+        {isZooming && active && (
+          <div style={{
+            position: 'absolute', left: '50%', top: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 6, height: 6, borderRadius: 3,
+            background: '#ff3b30', boxShadow: '0 0 6px rgba(255,59,48,0.6)',
+            pointerEvents: 'none', zIndex: 40,
+          }} />
+        )}
+
         {/* ── 확대 중 좌표 표시 ─────────────────────── */}
         {isZooming && active && (
           <div style={{

@@ -4,7 +4,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 
-const ZOOM = 10;
+const ZOOM = 4;
 
 export function useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone }) {
   // step: 0=P1탭대기 | 1=P1확대중 | 2=P2탭대기 | 3=P2확대중 | 4=완료
