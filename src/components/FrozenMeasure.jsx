@@ -1,23 +1,24 @@
-﻿/**
+/**
  * FrozenMeasure — 정지 이미지 위에서 두 점 탭 + 드래그 조정으로 직경 계측
  *
  * 표시: fit-to-width (이미지 전체를 화면 폭에 맞게)
  * 점 없는 상태 시작 → 첫 탭 P1 → 둘째 탭 P2 → 선·mm 표시
- * 2점 확정 후 각 점을 드래그로 미세조정; 드래그 중 루페(3.5×)
+ * 2점 확정 후 각 점을 드래그로 미세조정; 드래그 중 루페(3.5×) + 엣지 강조
  * 좌표: 원본 사진 픽셀 좌표계로 환산
  *
  * tapPhase: 'no_marker' | 'placing_points'
  */
 import { useRef, useEffect, useState } from 'react'
 import styles from './FrozenMeasure.module.css'
-// useCanvasZoomMeasure removed: implement pick/zoom flow inside this component
 import { avgSidePx } from '../utils/aruco'
-// removed MeasurementLoupe and useMeasurementLoupe; using in-canvas CSS scale zoom flow
 
-const HANDLE_VISUAL_R = 8    // 핸들 시각 반지름 (canvas px) — 정밀 표시
-const HANDLE_ARM      = 22   // 십자선 팔 길이 (center에서 ±)
-const HIT_R           = 56   // 드래그 히트 반지름 (canvas px) — 터치 편의
-const TAP_MAX_PX  = 28   // 현장 휴대폰 터치 흔들림을 탭으로 받아들이는 허용 범위
+const HANDLE_VISUAL_R = 8
+const HANDLE_ARM      = 22
+const HIT_R           = 56
+const LOUPE_R         = 80
+const LOUPE_ZOOM      = 3.5
+const LOUPE_ABOVE     = 165
+const TAP_MAX_PX      = 28
 
 // ── 좌표 변환 ──────────────────────────────────────────────────────────────────
 
@@ -38,19 +39,10 @@ function clampView(view, imgW, imgH, cw, ch) {
   const baseX = displayW <= cw ? (cw - displayW) / 2 : 0
   const baseY = displayH <= ch ? (ch - displayH) / 2 : 0
 
-  let minPanX = -baseX
-  let maxPanX = -baseX
-  if (displayW > cw) {
-    minPanX = cw - displayW - baseX
-    maxPanX = -baseX
-  }
-
-  let minPanY = -baseY
-  let maxPanY = -baseY
-  if (displayH > ch) {
-    minPanY = ch - displayH - baseY
-    maxPanY = -baseY
-  }
+  let minPanX = -baseX, maxPanX = -baseX
+  if (displayW > cw) { minPanX = cw - displayW - baseX; maxPanX = -baseX }
+  let minPanY = -baseY, maxPanY = -baseY
+  if (displayH > ch) { minPanY = ch - displayH - baseY; maxPanY = -baseY }
 
   return {
     zoom,
@@ -86,9 +78,7 @@ function clampNumber(value, min, max) {
 
 function colorDistance(a, b) {
   if (!a || !b) return Infinity
-  const dr = a.r - b.r
-  const dg = a.g - b.g
-  const db = a.b - b.b
+  const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b
   return Math.sqrt(dr * dr + dg * dg + db * db)
 }
 
@@ -104,22 +94,15 @@ function samplePatchColor(ctx, cx, cy, rx, ry, w, h) {
   for (let i = 0; i < data.length; i += 4) {
     const alpha = data[i + 3]
     if (alpha < 10) continue
-    r += data[i]
-    g += data[i + 1]
-    b += data[i + 2]
-    count += 1
+    r += data[i]; g += data[i + 1]; b += data[i + 2]; count += 1
   }
   if (!count) return null
-  r /= count
-  g /= count
-  b /= count
-
+  r /= count; g /= count; b /= count
   let spread = 0
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < 10) continue
     spread += colorDistance({ r: data[i], g: data[i + 1], b: data[i + 2] }, { r, g, b })
   }
-
   return { r, g, b, spread: spread / count }
 }
 
@@ -156,8 +139,7 @@ function getMarkerExcludeBox(markerCorners, w, h) {
 }
 
 function isStickerPixel(r, g, b) {
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
   if (max < 95 || max - min < 45) return false
   const sat = (max - min) / Math.max(1, max)
   if (sat < 0.34) return false
@@ -183,8 +165,7 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
   const excludeBox = getMarkerExcludeBox(markerCorners, w, h)
 
   for (let i = 0; i < total; i += 1) {
-    const x = i % w
-    const y = Math.floor(i / w)
+    const x = i % w, y = Math.floor(i / w)
     if (isInsideBox(x, y, excludeBox)) continue
     const p = i * 4
     if (isStickerPixel(data[p], data[p + 1], data[p + 2])) mask[i] = 1
@@ -201,29 +182,17 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
     visited[start] = 1
     stack.length = 0
     stack.push(start)
-    let count = 0
-    let sumX = 0
-    let sumY = 0
-    let sumR = 0
-    let sumG = 0
-    let sumB = 0
+    let count = 0, sumX = 0, sumY = 0, sumR = 0, sumG = 0, sumB = 0
     let minX = w, maxX = 0, minY = h, maxY = 0
 
     while (stack.length) {
       const idx = stack.pop()
-      const x = idx % w
-      const y = Math.floor(idx / w)
+      const x = idx % w, y = Math.floor(idx / w)
       const p = idx * 4
-      count += 1
-      sumX += x
-      sumY += y
-      sumR += data[p]
-      sumG += data[p + 1]
-      sumB += data[p + 2]
-      if (x < minX) minX = x
-      if (x > maxX) maxX = x
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
+      count += 1; sumX += x; sumY += y
+      sumR += data[p]; sumG += data[p + 1]; sumB += data[p + 2]
+      if (x < minX) minX = x; if (x > maxX) maxX = x
+      if (y < minY) minY = y; if (y > maxY) maxY = y
 
       const neighbors = [idx - 1, idx + 1, idx - w, idx + w]
       for (const next of neighbors) {
@@ -234,16 +203,13 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
       }
     }
 
-    const bw = maxX - minX + 1
-    const bh = maxY - minY + 1
+    const bw = maxX - minX + 1, bh = maxY - minY + 1
     const aspect = bw / Math.max(1, bh)
     if (count < minArea || count > maxArea) continue
     if (aspect < 0.28 || aspect > 3.6) continue
     blobs.push({
-      count,
-      minX, maxX, minY, maxY,
-      x: sumX / count,
-      y: sumY / count,
+      count, minX, maxX, minY, maxY,
+      x: sumX / count, y: sumY / count,
       role: stickerRole(sumR / count, sumG / count, sumB / count),
     })
   }
@@ -252,20 +218,38 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
 }
 
 function pickStickerPair(blobs, w, h, markerCorners) {
-  if (!blobs || blobs.length < 2) return null
-  // Prefer explicit role detection (red / blue)
-  const p1 = blobs.find(b => b.role === 'p1')
-  const p2 = blobs.find(b => b.role === 'p2')
-  if (p1 && p2) return p1.x <= p2.x ? { left: p1, right: p2 } : { left: p2, right: p1 }
+  if (blobs.length < 2) return null
+  const markerSide = markerCorners?.length === 4 ? avgSidePx(markerCorners) : Math.min(w, h) * 0.1
+  const p1Candidates = blobs.filter(blob => blob.role === 'p1').slice(0, 8)
+  const p2Candidates = blobs.filter(blob => blob.role === 'p2').slice(0, 8)
+  if (p1Candidates.length && p2Candidates.length) {
+    let bestColorPair = null, bestColorScore = -Infinity
+    for (const p1 of p1Candidates) {
+      for (const p2 of p2Candidates) {
+        const dx = p2.x - p1.x, dy = Math.abs(p2.y - p1.y)
+        if (dx < Math.max(14, markerSide * 0.18)) continue
+        if (dy > Math.max(markerSide * 1.45, h * 0.28)) continue
+        const score = dx - dy * 0.42 + Math.log(p1.count + p2.count) * 18
+        if (score > bestColorScore) { bestColorScore = score; bestColorPair = { left: p1, right: p2 } }
+      }
+    }
+    if (bestColorPair) return bestColorPair
+  }
 
-  // Fallback: choose leftmost and rightmost among top candidates
-  const candidates = blobs.slice(0, 12).slice().sort((a, b) => a.x - b.x)
-  if (candidates.length < 2) return null
-  const left = candidates[0]
-  const right = candidates[candidates.length - 1]
-  const minSep = Math.max(14, (markerCorners?.length ? avgSidePx(markerCorners) * 0.18 : 14))
-  if (Math.abs(right.x - left.x) < minSep) return null
-  return { left, right }
+  let best = null, bestScore = -Infinity
+  const candidates = blobs.slice(0, 12)
+  for (let i = 0; i < candidates.length; i += 1) {
+    for (let j = i + 1; j < candidates.length; j += 1) {
+      const a = candidates[i], b = candidates[j]
+      const left = a.x <= b.x ? a : b, right = a.x <= b.x ? b : a
+      const dx = right.x - left.x, dy = Math.abs(right.y - left.y)
+      if (dx < Math.max(14, markerSide * 0.18)) continue
+      if (dy > Math.max(markerSide * 1.45, h * 0.28)) continue
+      const score = dx - dy * 0.42 + Math.log(left.count + right.count) * 18
+      if (score > bestScore) { bestScore = score; best = { left, right } }
+    }
+  }
+  return best
 }
 
 function zoomAtDisplayPoint(currentView, factor, focus, imgW, imgH, cw, ch) {
@@ -284,62 +268,124 @@ function zoomAtDisplayPoint(currentView, factor, focus, imgW, imgH, cw, ch) {
   }, imgW, imgH, cw, ch)
 }
 
-// (popup loupe removed) in-canvas CSS scale zoom flow used instead
+// ── 루페 그리기 (엣지 강조 포함) ─────────────────────────────────────────────
 
-// ── 핸들 그리기 (작은 점 + 십자선 / 히트 영역은 별도로 크게) ────────────────
+function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
+  const { displayW, imgW } = layout
+  const scale         = imgW / displayW
+  const halfRegionImg = LOUPE_R / LOUPE_ZOOM * scale
+  const srcW = halfRegionImg * 2, srcH = halfRegionImg * 2
+  const srcX = Math.max(0, Math.min(layout.imgW - srcW, imgPt.x - halfRegionImg))
+  const srcY = Math.max(0, Math.min(layout.imgH - srcH, imgPt.y - halfRegionImg))
+
+  const loupeCX = Math.max(LOUPE_R + 10, Math.min(cw - LOUPE_R - 10, fingerDisp.x))
+  const loupeCY = Math.max(LOUPE_R + 10, fingerDisp.y - LOUPE_ABOVE)
+
+  // 원형 클립 + 확대 이미지
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.drawImage(img, srcX, srcY, srcW, srcH,
+    loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
+  ctx.restore()
+
+  // ── 엣지 강조 오버레이 (노란 경계선) ──────────────────────────────────────
+  try {
+    const id = ctx.getImageData(loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
+    const d = id.data, w2 = LOUPE_R * 2, h2 = LOUPE_R * 2
+    const gray = new Float32Array(w2 * h2)
+    for (let i = 0; i < w2 * h2; i++)
+      gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]
+    const ov = new Uint8ClampedArray(w2 * h2 * 4)
+    for (let y = 1; y < h2 - 1; y++) {
+      for (let x = 1; x < w2 - 1; x++) {
+        const g = (r, c) => gray[(y + r) * w2 + (x + c)]
+        const gx = -g(-1,-1)+g(-1,1)-2*g(0,-1)+2*g(0,1)-g(1,-1)+g(1,1)
+        const gy = -g(-1,-1)-2*g(-1,0)-g(-1,1)+g(1,-1)+2*g(1,0)+g(1,1)
+        const mag = Math.sqrt(gx * gx + gy * gy)
+        if (mag > 28) {
+          const i = (y * w2 + x) * 4
+          ov[i] = 255; ov[i + 1] = 220; ov[i + 2] = 0
+          ov[i + 3] = Math.min(210, mag * 2)
+        }
+      }
+    }
+    const tmp = document.createElement('canvas')
+    tmp.width = w2; tmp.height = h2
+    tmp.getContext('2d').putImageData(new ImageData(ov, w2, h2), 0, 0)
+    ctx.save()
+    ctx.beginPath(); ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2); ctx.clip()
+    ctx.drawImage(tmp, loupeCX - LOUPE_R, loupeCY - LOUPE_R)
+    ctx.restore()
+  } catch (e) {}
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // 테두리
+  ctx.beginPath(); ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke()
+
+  // 십자선
+  ctx.strokeStyle = '#ff3b30'; ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(loupeCX - 26, loupeCY); ctx.lineTo(loupeCX + 26, loupeCY)
+  ctx.moveTo(loupeCX, loupeCY - 26); ctx.lineTo(loupeCX, loupeCY + 26)
+  ctx.stroke()
+
+  // 루페→손가락 연결선
+  ctx.beginPath()
+  ctx.moveTo(loupeCX, loupeCY + LOUPE_R)
+  ctx.lineTo(fingerDisp.x, fingerDisp.y)
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5
+  ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([])
+
+  // 배율 배지
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'
+  ctx.fillRect(loupeCX - LOUPE_R, loupeCY + LOUPE_R - 22, LOUPE_R * 2, 22)
+  ctx.font = 'bold 12px sans-serif'; ctx.fillStyle = '#ffd166'; ctx.textAlign = 'center'
+  ctx.fillText(`${LOUPE_ZOOM}×`, loupeCX, loupeCY + LOUPE_R - 6)
+}
+
+// ── 핸들 그리기 ──────────────────────────────────────────────────────────────
 
 function drawHandle(ctx, dispX, dispY, label, isDragging) {
   const color = isDragging ? '#ff3b30' : '#ff6b35'
   ctx.save()
-
-  // 십자선 (원 뒤에 그림)
   ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 3
   ctx.strokeStyle = color; ctx.lineWidth = 1.8
   ctx.beginPath()
   ctx.moveTo(dispX - HANDLE_ARM, dispY); ctx.lineTo(dispX + HANDLE_ARM, dispY)
   ctx.moveTo(dispX, dispY - HANDLE_ARM); ctx.lineTo(dispX, dispY + HANDLE_ARM)
   ctx.stroke()
-
-  // 작은 원
   ctx.beginPath(); ctx.arc(dispX, dispY, HANDLE_VISUAL_R, 0, Math.PI * 2)
   ctx.fillStyle = color; ctx.fill()
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke()
-
-  // 레이블 (오른쪽 상단)
   ctx.shadowBlur = 4
   ctx.font = 'bold 13px sans-serif'
   ctx.fillStyle = '#fff'; ctx.textAlign = 'left'
   ctx.fillText(label, dispX + HANDLE_ARM + 4, dispY - 4)
-
   ctx.restore()
 }
 
 // ── 메인 캔버스 렌더 ─────────────────────────────────────────────────────────
 
-function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, draggingIdx, activePixel, zooming) {
-  const cw  = canvas.width
-  const ch  = canvas.height
+function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, draggingIdx, loupeImgPt) {
+  const cw = canvas.width, ch = canvas.height
   const ctx = canvas.getContext('2d')
   ctx.clearRect(0, 0, cw, ch)
   if (!img || !layout) return
 
   const { displayW, displayH, offsetX, offsetY, imgW, imgH } = layout
-
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cw, ch)
   ctx.drawImage(img, 0, 0, imgW, imgH, offsetX, offsetY, displayW, displayH)
 
-  // ArUco 마커 박스 — 두꺼운 선 + 번호 꼭짓점
   if (markerCorners?.length === 4) {
     const dpts = markerCorners.map(c => imgToDisp(c.x, c.y, layout))
-
-    // 외곽선
     ctx.beginPath()
     dpts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)))
     ctx.closePath()
     ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 4; ctx.stroke()
     ctx.fillStyle = 'rgba(0,255,136,0.08)'; ctx.fill()
-
-    // 꼭짓점 번호 (0~3) + 점
     dpts.forEach((p, i) => {
       ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
       ctx.fillStyle = '#00ff88'; ctx.fill()
@@ -347,8 +393,6 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
       ctx.font = 'bold 14px sans-serif'; ctx.fillStyle = '#000'; ctx.textAlign = 'center'
       ctx.fillText(String(i), p.x, p.y + 5)
     })
-
-    // 중앙 라벨
     const cx = dpts.reduce((s, p) => s + p.x, 0) / 4
     const cy = dpts.reduce((s, p) => s + p.y, 0) / 4
     ctx.save()
@@ -359,19 +403,16 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
   }
 
   if (pts?.length >= 1 && tapPhase === 'placing_points') {
-    // P1–P2 선 + mm 레이블 (2점 확정 시)
     if (pts.length === 2) {
       const dp = pts.map(p => imgToDisp(p.x, p.y, layout))
       ctx.beginPath()
       ctx.moveTo(dp[0].x, dp[0].y); ctx.lineTo(dp[1].x, dp[1].y)
       ctx.strokeStyle = 'rgba(255,107,53,0.8)'; ctx.lineWidth = 2
       ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([])
-
       if (pixelPerMm > 0) {
         const pxDist = Math.abs(pts[1].x - pts[0].x)
-        const mm  = pxDist / pixelPerMm
-        const midX = (dp[0].x + dp[1].x) / 2
-        const midY = (dp[0].y + dp[1].y) / 2
+        const mm = pxDist / pixelPerMm
+        const midX = (dp[0].x + dp[1].x) / 2, midY = (dp[0].y + dp[1].y) / 2
         ctx.save()
         ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'
         ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 5
@@ -380,8 +421,6 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
         ctx.restore()
       }
     }
-
-    // 핸들 (점마다 그림 — P1 단독, 또는 P1+P2)
     const labels = ['P1', 'P2']
     pts.forEach((p, i) => {
       const dp = imgToDisp(p.x, p.y, layout)
@@ -389,21 +428,9 @@ function redraw(canvas, img, layout, markerCorners, pts, pixelPerMm, tapPhase, d
     })
   }
 
-  // draw crosshair for active pixel when zooming
-  if (zooming && activePixel && layout) {
-    const dp = imgToDisp(activePixel.x, activePixel.y, layout)
-    const L = 40 // total length
-    const half = L / 2
-    ctx.save()
-    ctx.strokeStyle = '#FF3300'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(dp.x - half, dp.y)
-    ctx.lineTo(dp.x + half, dp.y)
-    ctx.moveTo(dp.x, dp.y - half)
-    ctx.lineTo(dp.x, dp.y + half)
-    ctx.stroke()
-    ctx.restore()
+  if (loupeImgPt !== null && draggingIdx !== null && tapPhase === 'placing_points') {
+    const fingerDisp = imgToDisp(loupeImgPt.x, loupeImgPt.y, layout)
+    drawLoupe(ctx, img, layout, fingerDisp, loupeImgPt, cw)
   }
 }
 
@@ -413,114 +440,45 @@ export default function FrozenMeasure({
   frozenSrc,
   frozenW, frozenH,
   markerCorners,
-  points,         // 원본 이미지 좌표 [{x,y}, ...]  (0·1·2개)
+  points,
   pixelPerMm,
   tapPhase,
   onPointsChange,
   debugInfo,
 }) {
-  const containerRef = useRef(null)
-  const canvasRef    = useRef(null)
-  const imgRef       = useRef(null)
-  const layoutRef    = useRef(null)
-  const draggingRef  = useRef(null)    // null | 0 | 1
-  const localPtsRef  = useRef(points)  // 드래그 중 최신 좌표
-  const tapPhaseRef  = useRef(tapPhase)
-  const onChangeRef  = useRef(onPointsChange)
-  const touchStartRef = useRef(null)   // { x, y, moved: bool }
-  const mouseDownRef  = useRef(null)   // { x, y }
-  const wrapperRef = useRef(null)
-  const miniRef = useRef(null)
-  // pick state for in-component zoom/pixel pick
-  const [pickStep, setPickStep] = useState(0) // 0=P1 wait,1=P1 adjust,2=P2 wait,3=P2 adjust,4=done
-  const [pickedP1, setPickedP1] = useState(null)
-  const [pickedP2, setPickedP2] = useState(null)
-  const [pickPixel, setPickPixel] = useState(null)
-  const panStartRef = useRef(null)
-  const viewRef = useRef({ zoom: 1, panX: 0, panY: 0 })
-  const sizeRef = useRef({ w: frozenW, h: frozenH })
+  const containerRef  = useRef(null)
+  const canvasRef     = useRef(null)
+  const imgRef        = useRef(null)
+  const layoutRef     = useRef(null)
+  const draggingRef   = useRef(null)
+  const localPtsRef   = useRef(points)
+  const tapPhaseRef   = useRef(tapPhase)
+  const onChangeRef   = useRef(onPointsChange)
+  const touchStartRef = useRef(null)
+  const mouseDownRef  = useRef(null)
+  const panStartRef   = useRef(null)
+  const viewRef       = useRef({ zoom: 1, panX: 0, panY: 0 })
+  const sizeRef       = useRef({ w: frozenW, h: frozenH })
   const autoZoomKeyRef = useRef('')
 
   const [imgReady,    setImgReady]    = useState(false)
   const [draggingIdx, setDraggingIdx] = useState(null)
-  const [view, setView] = useState({ zoom: 1, panX: 0, panY: 0 })
+  const [loupeImgPt,  setLoupeImgPt] = useState(null)
+  const [view,        setView]        = useState({ zoom: 1, panX: 0, panY: 0 })
 
-  // pickStep-driven zoom/pick control (inlined)
-  let stepLabel = [
-    'P1: 줄기 한쪽 끝을 탭하세요',
-    'P1 위치 조정 후 확정하세요',
-    'P2: 줄기 반대쪽 끝을 탭하세요',
-    'P2 위치 조정 후 확정하세요',
-    '측정 완료',
-  ][pickStep] ?? ''
-
-
-  // ref 동기화
   useEffect(() => { tapPhaseRef.current = tapPhase },       [tapPhase])
   useEffect(() => { onChangeRef.current = onPointsChange }, [onPointsChange])
-  useEffect(() => {
-    // draw minimap (thumbnail + viewport rect) when in pick-zoom state
-    const mini = miniRef.current
-    const img = imgRef.current
-    if (!mini || !img) return
-    const draw = () => {
-      const layout = layoutRef.current
-      const { w: imgW, h: imgH } = sizeRef.current
-      const cw = mini.clientWidth
-      const ch = mini.clientHeight
-      mini.width = cw
-      mini.height = ch
-      const ctx = mini.getContext('2d')
-      if (!ctx) return
-      // draw thumbnail fit-to-box
-      ctx.clearRect(0, 0, cw, ch)
-      // preserve aspect inside square
-      const ratio = imgW / imgH
-      let dw = cw, dh = ch, dx = 0, dy = 0
-      if (ratio > 1) {
-        dh = Math.round(cw / ratio)
-        dy = Math.round((ch - dh) / 2)
-      } else {
-        dw = Math.round(ch * ratio)
-        dx = Math.round((cw - dw) / 2)
-      }
-      ctx.drawImage(img, 0, 0, imgW, imgH, dx, dy, dw, dh)
-
-      // draw viewport rect corresponding to current layout/view
-      if (layout) {
-        const visibleTL = dispToImg(0, 0, layout)
-        const visibleBR = dispToImg((layout.displayW > layout.imgW ? layout.imgW : layout.displayW) + layout.offsetX, (layout.displayH > layout.imgH ? layout.imgH : layout.displayH) + layout.offsetY, layout)
-        const vx0 = visibleTL.x, vy0 = visibleTL.y
-        const vx1 = visibleBR.x, vy1 = visibleBR.y
-        const sx = dx + (vx0 / imgW) * dw
-        const sy = dy + (vy0 / imgH) * dh
-        const sw = Math.max(2, (Math.max(0, vx1 - vx0) / imgW) * dw)
-        const sh = Math.max(2, (Math.max(0, vy1 - vy0) / imgH) * dh)
-        ctx.strokeStyle = 'rgba(255,50,50,0.9)'
-        ctx.lineWidth = 2
-        ctx.strokeRect(sx + 0.5, sy + 0.5, sw, sh)
-      }
-    }
-
-    // redraw on animation frame for responsiveness
-    let raf = 0
-    const runner = () => { draw(); raf = requestAnimationFrame(runner) }
-    runner()
-    return () => cancelAnimationFrame(raf)
-  }, [pickStep])
-
   useEffect(() => {
     localPtsRef.current = points
     if (!points.length) {
       draggingRef.current = null
       setDraggingIdx(null)
-      // clear any temporary drag state
+      setLoupeImgPt(null)
     }
   }, [points])
   useEffect(() => { viewRef.current = view },               [view])
   useEffect(() => { sizeRef.current = { w: frozenW, h: frozenH } }, [frozenW, frozenH])
 
-  // 이미지 로딩
   useEffect(() => {
     if (!frozenSrc) { imgRef.current = null; setImgReady(false); return }
     setImgReady(false)
@@ -531,178 +489,109 @@ export default function FrozenMeasure({
     img.src = frozenSrc
   }, [frozenSrc])
 
-  // 캔버스 재렌더
   useEffect(() => {
     const canvas    = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container || !imgRef.current || !frozenW || !frozenH) return
-    const cw = container.clientWidth
-    const ch = container.clientHeight
+    const cw = container.clientWidth, ch = container.clientHeight
     if (!cw || !ch) return
-    canvas.width  = cw
-    canvas.height = ch
+    canvas.width = cw; canvas.height = ch
     const safeView = clampView(view, frozenW, frozenH, cw, ch)
-    if (
-      safeView.zoom !== view.zoom ||
-      safeView.panX !== view.panX ||
-      safeView.panY !== view.panY
-    ) {
-      setView(safeView)
-      return
+    if (safeView.zoom !== view.zoom || safeView.panX !== view.panX || safeView.panY !== view.panY) {
+      setView(safeView); return
     }
     layoutRef.current = computeLayout(frozenW, frozenH, cw, ch, safeView)
-    // Draw points from zoom hook when available, otherwise drag/local or props
-        let displayPts = null
-        if (p1 || p2) {
-          displayPts = []
-          if (p1) displayPts.push(p1)
-          if (p2) displayPts.push(p2)
-        } else {
-          displayPts = draggingRef.current !== null ? localPtsRef.current : points
-        }
-        redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
-          displayPts, pixelPerMm, tapPhase, draggingIdx, pickPixel, (pickStep === 1 || pickStep === 3))
-      }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, view, pickPixel, pickStep])
+    const displayPts = draggingRef.current !== null ? localPtsRef.current : points
+    redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
+           displayPts, pixelPerMm, tapPhase, draggingIdx, loupeImgPt)
+  }, [imgReady, frozenW, frozenH, markerCorners, points, pixelPerMm, tapPhase, draggingIdx, loupeImgPt, view])
 
   function updateView(nextView) {
-    const canvas = canvasRef.current
-    const container = containerRef.current
+    const canvas = canvasRef.current, container = containerRef.current
     const { w, h } = sizeRef.current
     if (!canvas || !container || !w || !h) return
-    const cw = container.clientWidth
-    const ch = container.clientHeight
+    const cw = container.clientWidth, ch = container.clientHeight
     const safe = clampView(nextView, w, h, cw, ch)
-    viewRef.current = safe
-    setView(safe)
+    viewRef.current = safe; setView(safe)
   }
 
   function zoomBy(factor) {
     const container = containerRef.current
     const { w, h } = sizeRef.current
     if (!container || !w || !h) return
-    const cw = container.clientWidth
-    const ch = container.clientHeight
-    const focus = { x: cw / 2, y: ch * 0.46 }
-    const current = viewRef.current
-    updateView(zoomAtDisplayPoint(current, factor, focus, w, h, cw, ch))
+    const cw = container.clientWidth, ch = container.clientHeight
+    updateView(zoomAtDisplayPoint(viewRef.current, factor, { x: cw / 2, y: ch * 0.46 }, w, h, cw, ch))
   }
 
-  function resetZoom() {
-    updateView({ zoom: 1, panX: 0, panY: 0 })
-  }
+  function resetZoom() { updateView({ zoom: 1, panX: 0, panY: 0 }) }
 
   function autoFitStemEdges() {
-    const img = imgRef.current
-    const pts = localPtsRef.current
+    const img = imgRef.current, pts = localPtsRef.current
     const { w, h } = sizeRef.current
     if (!img || !w || !h || pts.length !== 2) {
-      window.alert?.('P1·P2를 먼저 줄기 위에 찍어 주세요.')
-      return
+      window.alert?.('P1·P2를 먼저 줄기 위에 찍어 주세요.'); return
     }
-
     const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
+    canvas.width = w; canvas.height = h
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
     ctx.drawImage(img, 0, 0, w, h)
-
     const centerX = clampNumber((pts[0].x + pts[1].x) / 2, 0, w - 1)
     const centerY = clampNumber((pts[0].y + pts[1].y) / 2, 0, h - 1)
     const currentDist = Math.max(12, Math.abs(pts[1].x - pts[0].x))
     const markerSide = markerCorners?.length === 4 ? avgSidePx(markerCorners) : 0
-    const maxSearch = clampNumber(
-      Math.max(currentDist * 2.8, markerSide * 1.8, 80),
-      40,
-      Math.min(w * 0.36, 520),
-    )
+    const maxSearch = clampNumber(Math.max(currentDist * 2.8, markerSide * 1.8, 80), 40, Math.min(w * 0.36, 520))
     const sample = samplePatchColor(ctx, centerX, centerY, 5, 12, w, h)
     if (!sample) {
-      window.alert?.('줄기 색상 기준을 읽지 못했습니다. P1·P2를 줄기 중앙에 가깝게 놓고 다시 눌러 주세요.')
-      return
+      window.alert?.('줄기 색상 기준을 읽지 못했습니다.'); return
     }
-
     const halfBand = clampNumber(Math.round((markerSide || currentDist) * 0.035), 4, 12)
     const threshold = clampNumber(sample.spread * 2.15 + 28, 34, 78)
     const leftLimit = Math.max(1, Math.round(centerX - maxSearch))
     const rightLimit = Math.min(w - 2, Math.round(centerX + maxSearch))
-
     function findEdge(direction) {
-      let lastBarkX = Math.round(centerX)
-      let misses = 0
-      const start = Math.round(centerX)
-      const end = direction < 0 ? leftLimit : rightLimit
+      let lastBarkX = Math.round(centerX), misses = 0
+      const start = Math.round(centerX), end = direction < 0 ? leftLimit : rightLimit
       for (let x = start; direction < 0 ? x >= end : x <= end; x += direction) {
         const dist = columnColorDistance(ctx, x, centerY, halfBand, sample, w, h)
-        if (dist <= threshold) {
-          lastBarkX = x
-          misses = 0
-        } else {
-          misses += 1
-          if (misses >= 5) return lastBarkX
-        }
+        if (dist <= threshold) { lastBarkX = x; misses = 0 }
+        else { misses += 1; if (misses >= 5) return lastBarkX }
       }
       return lastBarkX
     }
-
-    const leftX = findEdge(-1)
-    const rightX = findEdge(1)
+    const leftX = findEdge(-1), rightX = findEdge(1)
     if (!Number.isFinite(leftX) || !Number.isFinite(rightX) || rightX - leftX < 8) {
-      window.alert?.('줄기 양쪽 경계를 찾지 못했습니다. P1·P2를 줄기 가운데 높이에 놓고 다시 눌러 주세요.')
-      return
+      window.alert?.('줄기 양쪽 경계를 찾지 못했습니다.'); return
     }
-
-    const nextPts = [
-      { x: leftX, y: centerY },
-      { x: rightX, y: centerY },
-    ]
-    draggingRef.current = null
-    setDraggingIdx(null)
-    localPtsRef.current = nextPts
-    onChangeRef.current?.(nextPts)
+    const nextPts = [{ x: leftX, y: centerY }, { x: rightX, y: centerY }]
+    draggingRef.current = null; setDraggingIdx(null); setLoupeImgPt(null)
+    localPtsRef.current = nextPts; onChangeRef.current?.(nextPts)
   }
 
   function autoFindStickerPoints() {
-    const img = imgRef.current
-    const { w, h } = sizeRef.current
-    if (!img || !w || !h) {
-      window.alert?.('사진을 먼저 촬영해 주세요.')
-      return
-    }
-
+    const img = imgRef.current, { w, h } = sizeRef.current
+    if (!img || !w || !h) { window.alert?.('사진을 먼저 촬영해 주세요.'); return }
     const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
+    canvas.width = w; canvas.height = h
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
     ctx.drawImage(img, 0, 0, w, h)
-
     const blobs = findStickerBlobs(ctx, w, h, markerCorners)
     const pair = pickStickerPair(blobs, w, h, markerCorners)
     if (!pair) {
-      window.alert?.('색깔 스티커 2개를 찾지 못했습니다. 빨강·주황·분홍·파랑처럼 선명한 스티커를 줄기 양쪽 끝에 붙이고 다시 촬영해 주세요.')
-      return
+      window.alert?.('색깔 스티커 2개를 찾지 못했습니다.'); return
     }
-
     const y = (pair.left.y + pair.right.y) / 2
-    const nextPts = [
-      { x: pair.left.x, y },
-      { x: pair.right.x, y },
-    ]
-    draggingRef.current = null
-    setDraggingIdx(null)
-    localPtsRef.current = nextPts
-    onChangeRef.current?.(nextPts)
+    const nextPts = [{ x: pair.left.x, y }, { x: pair.right.x, y }]
+    draggingRef.current = null; setDraggingIdx(null); setLoupeImgPt(null)
+    localPtsRef.current = nextPts; onChangeRef.current?.(nextPts)
   }
 
   function centerImagePoint(imgPoint, zoom = 2.2) {
-    const container = containerRef.current
-    const { w, h } = sizeRef.current
+    const container = containerRef.current, { w, h } = sizeRef.current
     if (!container || !w || !h) return
-    const cw = container.clientWidth
-    const ch = container.clientHeight
-    const displayW = cw * zoom
-    const displayH = (h / w) * cw * zoom
+    const cw = container.clientWidth, ch = container.clientHeight
+    const displayW = cw * zoom, displayH = (h / w) * cw * zoom
     const baseX = displayW <= cw ? (cw - displayW) / 2 : 0
     const baseY = displayH <= ch ? (ch - displayH) / 2 : 0
     updateView({
@@ -712,17 +601,12 @@ export default function FrozenMeasure({
     })
   }
 
-  // --- in-canvas zoom helpers for pixel-precise picking ---
-  
-
   useEffect(() => {
     if (!imgReady || !markerCorners?.length || points.length !== 0) return
     const key = `${frozenSrc}-${markerCorners.map(c => `${Math.round(c.x)},${Math.round(c.y)}`).join('|')}`
     if (autoZoomKeyRef.current === key) return
     autoZoomKeyRef.current = key
-
-    const xs = markerCorners.map(c => c.x)
-    const ys = markerCorners.map(c => c.y)
+    const xs = markerCorners.map(c => c.x), ys = markerCorners.map(c => c.y)
     const markerSide = avgSidePx(markerCorners)
     const target = {
       x: Math.max(0, Math.min(...xs) - markerSide * 1.15),
@@ -731,7 +615,6 @@ export default function FrozenMeasure({
     setTimeout(() => centerImagePoint(target, 2.25), 60)
   }, [imgReady, markerCorners, points.length, frozenSrc])
 
-  // 터치·마우스 이벤트 (직접 DOM)
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -739,47 +622,36 @@ export default function FrozenMeasure({
     function canvasPos(clientX, clientY) {
       const rect = canvas.getBoundingClientRect()
       return {
-        x: (clientX - rect.left) * (canvas.width  / rect.width),
-        y: (clientY - rect.top)  * (canvas.height / rect.height),
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height),
       }
     }
 
     function findHandle(cx, cy) {
-      const pts    = localPtsRef.current
-      const layout = layoutRef.current
+      const pts = localPtsRef.current, layout = layoutRef.current
       if (!pts?.length || !layout) return null
       let hit = null, minDist = Infinity
       for (let i = 0; i < pts.length; i++) {
-        const dp   = imgToDisp(pts[i].x, pts[i].y, layout)
+        const dp = imgToDisp(pts[i].x, pts[i].y, layout)
         const dist = Math.hypot(cx - dp.x, cy - dp.y)
         if (dist < HIT_R && dist < minDist) { minDist = dist; hit = i }
       }
       return hit
     }
 
-    // ── Touch ──────────────────────────────────────────────────────────────
-
     function onTouchStart(e) {
       if (tapPhaseRef.current !== 'placing_points') return
       e.preventDefault()
       const touch = e.touches[0]
-      const cp    = canvasPos(touch.clientX, touch.clientY)
+      const cp = canvasPos(touch.clientX, touch.clientY)
       touchStartRef.current = { x: cp.x, y: cp.y, moved: false }
-      panStartRef.current = {
-        x: cp.x,
-        y: cp.y,
-        panX: viewRef.current.panX,
-        panY: viewRef.current.panY,
-      }
-
-      // 2점 확정 후에만 핸들 드래그 시작 가능. 그 전에는 이동/확대 후 탭으로 점을 찍는다.
+      panStartRef.current = { x: cp.x, y: cp.y, panX: viewRef.current.panX, panY: viewRef.current.panY }
       if (localPtsRef.current.length === 2) {
         const hit = findHandle(cp.x, cp.y)
         if (hit !== null) {
-          draggingRef.current = hit
-          setDraggingIdx(hit)
+          draggingRef.current = hit; setDraggingIdx(hit)
           const imgPt = localPtsRef.current[hit]
-            // removed loupe-on-drag behavior
+          setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
           panStartRef.current = null
         }
       }
@@ -789,23 +661,20 @@ export default function FrozenMeasure({
       if (tapPhaseRef.current !== 'placing_points') return
       e.preventDefault()
       const touch = e.touches[0]
-      const cp    = canvasPos(touch.clientX, touch.clientY)
-
-      // 이동 거리 추적 (탭 vs 드래그 판별)
+      const cp = canvasPos(touch.clientX, touch.clientY)
       if (touchStartRef.current) {
         const d = Math.hypot(cp.x - touchStartRef.current.x, cp.y - touchStartRef.current.y)
         if (d > TAP_MAX_PX) touchStartRef.current.moved = true
       }
-
       if (panIfNeeded(cp)) return
       if (draggingRef.current === null) return
-
       const layout = layoutRef.current
       if (!layout) return
       const imgPt = clampImg(dispToImg(cp.x, cp.y, layout), layout)
       const newPts = [...localPtsRef.current]
       newPts[draggingRef.current] = imgPt
       localPtsRef.current = newPts
+      setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
       onChangeRef.current?.(newPts)
     }
 
@@ -813,13 +682,10 @@ export default function FrozenMeasure({
       if (draggingRef.current !== null) return false
       if (!touchStartRef.current || !panStartRef.current) return false
       if (!touchStartRef.current.moved) return false
-
-      const dx = cp.x - panStartRef.current.x
-      const dy = cp.y - panStartRef.current.y
       updateView({
         zoom: viewRef.current.zoom,
-        panX: panStartRef.current.panX + dx,
-        panY: panStartRef.current.panY + dy,
+        panX: panStartRef.current.panX + (cp.x - panStartRef.current.x),
+        panY: panStartRef.current.panY + (cp.y - panStartRef.current.y),
       })
       return true
     }
@@ -827,44 +693,33 @@ export default function FrozenMeasure({
     function onTouchEnd(e) {
       if (tapPhaseRef.current !== 'placing_points') return
       const startInfo = touchStartRef.current
-      touchStartRef.current = null
-      panStartRef.current = null
-
-      // 드래그 종료
+      touchStartRef.current = null; panStartRef.current = null
       if (draggingRef.current !== null) {
-        draggingRef.current = null
-        setDraggingIdx(null)
-        // removed loupe-on-drag behavior
-        return
+        draggingRef.current = null; setDraggingIdx(null); setLoupeImgPt(null); return
       }
-
-      if (!startInfo || startInfo.moved) return  // 스크롤·패닝이었음
-
-      // 탭 → 점 추가
+      if (!startInfo || startInfo.moved) return
       const touch = e.changedTouches[0]
-      const cp    = canvasPos(touch.clientX, touch.clientY)
-      const dist  = Math.hypot(cp.x - startInfo.x, cp.y - startInfo.y)
+      const cp = canvasPos(touch.clientX, touch.clientY)
+      const dist = Math.hypot(cp.x - startInfo.x, cp.y - startInfo.y)
       if (dist > TAP_MAX_PX) return
-
       const layout = layoutRef.current
       if (!layout) return
-      const imgPt     = clampImg(dispToImg(cp.x, cp.y, layout), layout)
+      const imgPt = clampImg(dispToImg(cp.x, cp.y, layout), layout)
       const currentPts = localPtsRef.current
-      if (currentPts.length >= 2) return  // 이미 2점 확정
-
-      // If waiting for P1 or P2, enter pick-adjust mode using existing zoom system
-      if (pickStep === 0 || pickStep === 2) {
-        setPickPixel(imgPt)
-        const container = containerRef.current
-        const cw = container?.clientWidth || 0
-        const ch = container?.clientHeight || 0
-        const nextView = zoomAtDisplayPoint(viewRef.current, 3, { x: cp.x, y: cp.y }, frozenW, frozenH, cw, ch)
-        updateView(nextView)
-        setPickStep(s => s + 1)
+      if (currentPts.length >= 2) return
+      const newPts = [...currentPts, imgPt]
+      localPtsRef.current = newPts
+      onChangeRef.current?.(newPts)
+      // ── 탭 위치 3배 자동 확대 ──────────────────────────────────────────────
+      const cnt = containerRef.current
+      const { w, h } = sizeRef.current
+      if (cnt && w && h) {
+        const cw2 = cnt.clientWidth, ch2 = cnt.clientHeight
+        const factor = 3 / Math.max(1, viewRef.current.zoom)
+        updateView(zoomAtDisplayPoint(viewRef.current, factor, cp, w, h, cw2, ch2))
       }
+      // ────────────────────────────────────────────────────────────────────────
     }
-
-    // ── Mouse (데스크톱 테스트) ────────────────────────────────────────────
 
     function onMouseDown(e) {
       if (tapPhaseRef.current !== 'placing_points') return
@@ -872,10 +727,9 @@ export default function FrozenMeasure({
       if (localPtsRef.current.length === 2) {
         const hit = findHandle(e.offsetX, e.offsetY)
         if (hit !== null) {
-          draggingRef.current = hit
-          setDraggingIdx(hit)
+          draggingRef.current = hit; setDraggingIdx(hit)
           const imgPt = localPtsRef.current[hit]
-          // removed loupe-on-drag behavior
+          setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
         }
       }
     }
@@ -888,6 +742,7 @@ export default function FrozenMeasure({
       const newPts = [...localPtsRef.current]
       newPts[draggingRef.current] = imgPt
       localPtsRef.current = newPts
+      setLoupeImgPt({ x: imgPt.x, y: imgPt.y })
       onChangeRef.current?.(newPts)
     }
 
@@ -895,33 +750,28 @@ export default function FrozenMeasure({
       const startPos = mouseDownRef.current
       mouseDownRef.current = null
       if (draggingRef.current !== null) {
-        draggingRef.current = null
-        setDraggingIdx(null)
-        return
+        draggingRef.current = null; setDraggingIdx(null); setLoupeImgPt(null); return
       }
       if (!startPos) return
       const dist = Math.hypot(e.offsetX - startPos.x, e.offsetY - startPos.y)
       if (dist > TAP_MAX_PX) return
       const layout = layoutRef.current
       if (!layout) return
-      const imgPt     = clampImg(dispToImg(e.offsetX, e.offsetY, layout), layout)
+      const imgPt = clampImg(dispToImg(e.offsetX, e.offsetY, layout), layout)
       const currentPts = localPtsRef.current
       if (currentPts.length >= 2) return
-
-      // If waiting for P1 or P2, enter pick-adjust mode using existing zoom system
-      if (pickStep === 0 || pickStep === 2) {
-        setPickPixel(imgPt)
-        const container = containerRef.current
-        const cw = container?.clientWidth || 0
-        const ch = container?.clientHeight || 0
-        const cp = { x: e.offsetX, y: e.offsetY }
-        const nextView = zoomAtDisplayPoint(viewRef.current, 3, cp, frozenW, frozenH, cw, ch)
-        updateView(nextView)
-        setPickStep(s => s + 1)
+      const newPts = [...currentPts, imgPt]
+      localPtsRef.current = newPts
+      onChangeRef.current?.(newPts)
+      // 마우스 탭 3배 자동 확대
+      const cnt = containerRef.current
+      const { w, h } = sizeRef.current
+      if (cnt && w && h) {
+        const cw2 = cnt.clientWidth, ch2 = cnt.clientHeight
+        const factor = 3 / Math.max(1, viewRef.current.zoom)
+        updateView(zoomAtDisplayPoint(viewRef.current, factor, { x: e.offsetX, y: e.offsetY }, w, h, cw2, ch2))
       }
     }
-
-    
 
     canvas.addEventListener('touchstart', onTouchStart, { passive: false })
     canvas.addEventListener('touchmove',  onTouchMove,  { passive: false })
@@ -938,204 +788,83 @@ export default function FrozenMeasure({
       canvas.removeEventListener('mousemove',  onMouseMove)
       canvas.removeEventListener('mouseup',    onMouseUp)
     }
-  }, [])  // 마운트 1회 — 내부에서 ref로 최신값 참조
+  }, [])
 
   const isPlacing = tapPhase === 'placing_points'
 
-  // Zoom control handlers are provided by useCanvasZoomMeasure hook
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-      {/* ── 안내 텍스트 ─────────────────────────────── */}
-      <p style={{
-        textAlign: 'center', margin: '6px 0',
-        fontSize: 15, fontWeight: 'bold',
-        color: step === 4 ? '#2E5F3E' : '#333',
-      }}>
-        {stepLabel}
-      </p>
-
-      {/* ── 캔버스 래퍼 (overflow:hidden 으로 확대 클립) ─ */}
-      <div
-        ref={(el) => { containerRef.current = el; wrapperRef.current = el }}
+    <div ref={containerRef} className={styles.container}>
+      <canvas
+        ref={canvasRef}
+        className={styles.canvas}
         style={{
-          flex: 1,
-          overflow: 'hidden',
-          position: 'relative',
-          background: '#000',
-          touchAction: 'none',
+          cursor: isPlacing
+            ? (draggingIdx !== null ? 'grabbing'
+               : points.length < 2  ? 'crosshair' : 'grab')
+            : 'default',
         }}
-      >
-        <canvas
-          ref={canvasRef}
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'block',
-          }}
-        />
+      />
 
-        {/* 캔버스 중앙에 확대 포인터 (스케일링과 무관하게 항상 화면 중앙에 표시) */}
-        {/* center marker during pick-adjust */}
-        {(pickStep === 1 || pickStep === 3) && pickPixel && (
-          <div style={{
-            position: 'absolute', left: '50%', top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 6, height: 6, borderRadius: 3,
-            background: '#ff3b30', boxShadow: '0 0 6px rgba(255,59,48,0.6)',
-            pointerEvents: 'none', zIndex: 40,
-          }} />
-        )}
-
-        {/* ── 확대 중 좌표 표시 ─────────────────────── */}
-        {(pickStep === 1 || pickStep === 3) && pickPixel && (
-          <div style={{
-            position: 'absolute', top: 8, left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.65)',
-            color: '#fff', borderRadius: 8,
-            padding: '4px 14px', fontSize: 13,
-            pointerEvents: 'none',
-          }}>
-            x <b>{Math.round(pickPixel.x)}</b> px &nbsp; y <b>{Math.round(pickPixel.y)}</b> px
-          </div>
-        )}
-
-        {/* minimap */}
-        {isZooming && active && (
-          <canvas
-            ref={miniRef}
-            style={{
-              position: 'absolute', right: 10, bottom: 10,
-              width: 96, height: 96, borderRadius: 8,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-              background: '#fff', pointerEvents: 'none', zIndex: 45,
-            }}
-          />
-        )}
-      </div>
-
-      {/* ── 확대 중 조작 패널 ───────────────────────── */}
-      {(pickStep === 1 || pickStep === 3) && (
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', gap: 6,
-          padding: '10px 0', background: '#F6FAF7',
-        }}>
-          {/* 방향키 */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-            <Btn onPress={() => movePick(0, -1)}>▲</Btn>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Btn onPress={() => movePick(-1, 0)}>◀</Btn>
-              <div style={{ width: 52, height: 52 }} />
-              <Btn onPress={() => movePick(1, 0)}>▶</Btn>
-            </div>
-            <Btn onPress={() => movePick(0, 1)}>▼</Btn>
-          </div>
-
-          {/* 확정 / 취소 */}
-          <div style={{ display: 'flex', gap: 10, width: '80%' }}>
+      {isPlacing && (
+        <div className={styles.zoomControls}>
+          <span className={styles.zoomTitle}>
+            {points.length < 2 ? '먼저 확대' : '확대 조정'}
+          </span>
+          <button type="button" onClick={() => zoomBy(1.6)} aria-label="확대">확대</button>
+          <button type="button" onClick={() => zoomBy(1 / 1.6)} aria-label="축소">축소</button>
+          <button type="button" onClick={resetZoom} aria-label="원래 크기">1×</button>
+          <button
+            type="button"
+            className={styles.stickerFitBtn}
+            hidden aria-hidden="true" onClick={autoFindStickerPoints}
+            aria-label="색깔 스티커로 P1 P2 자동찾기"
+          >
+            스티커<br />찾기
+          </button>
+          {points.length === 2 && (
             <button
-              onPointerDown={() => cancelPick()}
-              style={btnStyle('#eee', '#333')}
+              type="button"
+              className={styles.autoFitBtn}
+              hidden aria-hidden="true" onClick={autoFitStemEdges}
+              aria-label="색상으로 줄기 경계 자동맞춤"
             >
-              취소
+              자동<br />맞춤
             </button>
-            <button
-              onPointerDown={() => confirmPick()}
-              style={btnStyle('#2E5F3E', '#fff')}
-            >
-              ✓ {pickStep === 1 ? 'P1' : 'P2'} 확정
-            </button>
-          </div>
+          )}
         </div>
       )}
 
-      {/* ── 하단 버튼 (기존 P1·P2 다시찍기 / 측정 / 닫기) ─ */}
-      {!isZooming && (
-        <div style={{ display: 'flex', gap: 8, padding: '8px 12px' }}>
-          <button onPointerDown={() => autoFindStickerPoints()} style={btnStyle('#f0f0f0', '#333')}>
-            색깔 스티커로 자동 감지
-          </button>
-          <button onPointerDown={reset} style={btnStyle('#f0f0f0', '#333')}>
-            P1·P2 다시찍기
-          </button>
-          {step === 4 && distMm && (
-            <div style={{
-              flex: 1, textAlign: 'center',
-              fontSize: 18, fontWeight: 'bold', color: '#2E5F3E',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {distMm} mm
+      {tapPhase === 'no_marker' && (
+        <div className={styles.noMarkerOverlay}>
+          <span className={styles.noMarkerIcon}>🔍</span>
+          <p>ArUco 마커를 인식하지 못했습니다</p>
+          <p className={styles.noMarkerSub}>마커 전체가 보이도록 다시 촬영해 주세요</p>
+          {debugInfo && (
+            <div className={styles.debugBox}>
+              <p>사각형 후보: <strong>{debugInfo.candidates}</strong>개</p>
+              <p className={styles.debugDicts}>
+                시도 사전: {[...new Set((debugInfo.triedVariants ?? []).map(v => v.split('/')[0]))].join(' · ')}
+              </p>
+              {debugInfo.candidates === 0 && (
+                <p className={styles.debugTip}>→ 마커가 너무 작거나 흐릿합니다. 더 가까이 촬영하세요.</p>
+              )}
+              {debugInfo.candidates > 0 && (
+                <p className={styles.debugTip}>→ 사전 불일치 가능. 마커 ID·사전을 확인하세요.</p>
+              )}
             </div>
           )}
         </div>
       )}
+
+      {isPlacing && draggingIdx === null && (
+        <div className={`${styles.hint} ${styles.hintTap}`}>
+          {points.length === 0
+            ? '색깔 스티커를 붙였으면 스티커찾기를 누르세요'
+            : points.length === 1
+            ? '확대 상태에서 반대쪽 끝(P2)을 탭하세요'
+            : 'P1·P2를 줄기 양쪽 끝에 맞춘 뒤 측정을 누르세요'}
+        </div>
+      )}
     </div>
   )
-
-  // ── 재사용 버튼 컴포넌트 ─────────────────────────────────────────
-  function Btn({ onPress, children }) {
-    return (
-      <button
-        onPointerDown={onPress}
-        style={{
-          width: 52, height: 52, fontSize: 20,
-          background: '#EAF3ED', border: '1px solid #B2D4BC',
-          borderRadius: 10, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          userSelect: 'none', WebkitUserSelect: 'none',
-          touchAction: 'manipulation',
-        }}
-      >
-        {children}
-      </button>
-    );
-  }
-
-  // Move pick pixel by dx/dy (image pixels), clamp and recenter view
-  function movePick(dx, dy) {
-    if (!pickPixel || !layoutRef.current) return
-    const l = layoutRef.current
-    const next = clampImg({ x: pickPixel.x + dx, y: pickPixel.y + dy }, l)
-    setPickPixel(next)
-    // center image on new pixel at current zoom
-    centerImagePoint(next, viewRef.current.zoom)
-  }
-
-  function cancelPick() {
-    // zoom out one step
-    resetZoom()
-    setPickPixel(null)
-    setPickStep(s => Math.max(0, s - 1))
-  }
-
-  function confirmPick() {
-    if (!pickPixel) return
-    if (pickStep === 1) {
-      setPickedP1(pickPixel)
-      setPickStep(2)
-      setPickPixel(null)
-    } else if (pickStep === 3) {
-      setPickedP2(pickPixel)
-      setPickStep(4)
-      const nextPts = [pickedP1 || pickPixel, pickPixel]
-      draggingRef.current = null
-      setDraggingIdx(null)
-      localPtsRef.current = nextPts
-      onChangeRef.current?.(nextPts)
-    }
-  }
-
-  function btnStyle(bg, color) {
-    return {
-      flex: 1, padding: '11px 0',
-      background: bg, color,
-      border: 'none', borderRadius: 10,
-      fontSize: 15, fontWeight: 'bold',
-      cursor: 'pointer', touchAction: 'manipulation',
-    };
-  }
 }
-
