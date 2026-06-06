@@ -294,11 +294,29 @@ function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
   ctx.beginPath()
   ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
   ctx.clip()
-  ctx.filter = 'brightness(1.3)'
   ctx.drawImage(img, srcX, srcY, srcW, srcH,
-    loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
-  ctx.filter = 'none'
-  ctx.restore()
+  loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
+ctx.restore()
+try {
+  const id=ctx.getImageData(loupeCX-LOUPE_R,loupeCY-LOUPE_R,LOUPE_R*2,LOUPE_R*2)
+  const d=id.data,w2=LOUPE_R*2,h2=LOUPE_R*2
+  const gray=new Float32Array(w2*h2)
+  for(let i=0;i<w2*h2;i++) gray[i]=0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2]
+  const ov=new Uint8ClampedArray(w2*h2*4)
+  for(let y=1;y<h2-1;y++){for(let x=1;x<w2-1;x++){
+    const g=(r,c)=>gray[(y+r)*w2+(x+c)]
+    const gx=-g(-1,-1)+g(-1,1)-2*g(0,-1)+2*g(0,1)-g(1,-1)+g(1,1)
+    const gy=-g(-1,-1)-2*g(-1,0)-g(-1,1)+g(1,-1)+2*g(1,0)+g(1,1)
+    const mag=Math.sqrt(gx*gx+gy*gy)
+    if(mag>28){const i=(y*w2+x)*4
+      ov[i]=255;ov[i+1]=255;ov[i+2]=255;ov[i+3]=Math.min(120,mag*1.5)}
+  }}
+  const tmp=document.createElement('canvas');tmp.width=w2;tmp.height=h2
+  tmp.getContext('2d').putImageData(new ImageData(ov,w2,h2),0,0)
+  ctx.save();ctx.beginPath();ctx.arc(loupeCX,loupeCY,LOUPE_R,0,Math.PI*2);ctx.clip()
+  ctx.drawImage(tmp,loupeCX-LOUPE_R,loupeCY-LOUPE_R);ctx.restore()
+} catch(e){}
+  
 
 
 
