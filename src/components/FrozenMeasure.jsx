@@ -917,7 +917,7 @@ export default function FrozenMeasure({
         const sc = srcImageCanvasRef.current
         sc.width = sizeRef.current.w
         sc.height = sizeRef.current.h
-        const sctx = sc.getContext('2d')
+        const sctx = sc.getContext('2d', { willReadFrequently: true })
         sctx.clearRect(0, 0, sc.width, sc.height)
         sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
         updateLoupe(imgPt.x, imgPt.y, sc)
@@ -979,7 +979,7 @@ export default function FrozenMeasure({
         const sc = srcImageCanvasRef.current
         sc.width = sizeRef.current.w
         sc.height = sizeRef.current.h
-        const sctx = sc.getContext('2d')
+        const sctx = sc.getContext('2d', { willReadFrequently: true })
         sctx.clearRect(0, 0, sc.width, sc.height)
         sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
         updateLoupe(imgPt.x, imgPt.y, sc)
@@ -1018,7 +1018,7 @@ export default function FrozenMeasure({
       const sc = srcImageCanvasRef.current
       sc.width = sizeRef.current.w
       sc.height = sizeRef.current.h
-      const sctx = sc.getContext('2d')
+      const sctx = sc.getContext('2d', { willReadFrequently: true })
       sctx.clearRect(0, 0, sc.width, sc.height)
       sctx.drawImage(imgRef.current, 0, 0, sc.width, sc.height)
       nudge(dx, dy, sc)

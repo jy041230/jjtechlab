@@ -44,23 +44,58 @@ function sobelEdges(imageData, width, height, threshold = 25) {
 
 // ── 루페 캔버스 그리기 ───────────────────────────────────────────
 function drawLoupe(loupeCtx, srcCanvas, cx, cy) {
+  if (!srcCanvas) {
+    console.warn('useMeasurementLoupe: no source canvas provided')
+    return
+  }
   const srcCtx = srcCanvas.getContext('2d', { willReadFrequently: true });
-  const sw = srcCanvas.width;
-  const sh = srcCanvas.height;
+  if (!srcCtx) {
+    console.warn('useMeasurementLoupe: unable to get 2d context from source canvas')
+    return
+  }
+  const sw = srcCanvas.width || 0;
+  const sh = srcCanvas.height || 0;
+  if (!sw || !sh) {
+    console.warn('useMeasurementLoupe: source canvas has zero width/height')
+    return
+  }
 
   // 원본에서 샘플 영역 읽기
-  const sx = Math.max(0, cx - SAMPLE_HALF);
-  const sy = Math.max(0, cy - SAMPLE_HALF);
-  const sw2 = Math.min(SAMPLE_HALF * 2 + 1, sw - sx);
-  const sh2 = Math.min(SAMPLE_HALF * 2 + 1, sh - sy);
+  const sx = Math.max(0, Math.round(cx - SAMPLE_HALF));
+  const sy = Math.max(0, Math.round(cy - SAMPLE_HALF));
+  const sw2 = Math.max(0, Math.min(SAMPLE_HALF * 2 + 1, sw - sx));
+  const sh2 = Math.max(0, Math.min(SAMPLE_HALF * 2 + 1, sh - sy));
 
-  const patch = srcCtx.getImageData(sx, sy, sw2, sh2);
+  if (sw2 <= 0 || sh2 <= 0) {
+    console.warn('useMeasurementLoupe: computed sample region empty', { sx, sy, sw2, sh2, sw, sh })
+    return
+  }
+
+  // ensure loupe context is available and optimized for reads
+  const loupeContext = loupeCtx || loupeCtx // alias
+  const loupeCtx2 = loupeContext.canvas && loupeContext ? loupeContext : loupeCtx
+  loupeCtx = loupeCtx || (loupeCtx2 && loupeCtx2.canvas ? loupeCtx2 : loupeCtx)
+  // 루페 캔버스 클리어
+  loupeCtx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
+
+  // Try to read pixel data; fall back to drawImage if getImageData is blocked (CORS)
+  let patch = null
+  try {
+    patch = srcCtx.getImageData(sx, sy, sw2, sh2);
+  } catch (err) {
+    console.warn('useMeasurementLoupe: getImageData failed, falling back to drawImage', err)
+    // draw scaled region into loupe directly
+    try {
+      loupeCtx.imageSmoothingEnabled = false
+      loupeCtx.drawImage(srcCanvas, sx, sy, sw2, sh2, 0, 0, sw2 * ZOOM, sh2 * ZOOM)
+    } catch (err2) {
+      console.warn('useMeasurementLoupe: fallback drawImage also failed', err2)
+    }
+    return
+  }
 
   // 엣지 계산
   const edges = sobelEdges(patch, sw2, sh2);
-
-  // 루페 캔버스 클리어
-  loupeCtx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE);
 
   // 픽셀별 확대 그리기 + 엣지 오버레이
   const patchData = patch.data;
@@ -140,7 +175,14 @@ export function useMeasurementLoupe(srcCanvasRef) {
       x: Math.round(x),
       y: Math.round(y),
     };
-    const ctx = loupeCanvas.getContext('2d');
+    // ensure loupe canvas size is set
+    if (loupeCanvas.width !== LOUPE_SIZE) loupeCanvas.width = LOUPE_SIZE
+    if (loupeCanvas.height !== LOUPE_SIZE) loupeCanvas.height = LOUPE_SIZE
+    const ctx = loupeCanvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) {
+      console.warn('useMeasurementLoupe: cannot get loupe canvas context')
+      return
+    }
     drawLoupe(ctx, srcCanvas, Math.round(x), Math.round(y));
   }, [srcCanvasRef]);
 
