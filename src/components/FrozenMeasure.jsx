@@ -250,43 +250,22 @@ function findStickerBlobs(ctx, w, h, markerCorners) {
 
   return blobs.sort((a, b) => b.count - a.count)
 }
-      for (const p2 of p2Candidates) {
-        const dx = p2.x - p1.x
-        const dy = Math.abs(p2.y - p1.y)
-        if (dx < Math.max(14, markerSide * 0.18)) continue
-        if (dy > Math.max(markerSide * 1.45, h * 0.28)) continue
-        const score = dx - dy * 0.42 + Math.log(p1.count + p2.count) * 18
-        if (score > bestColorScore) {
-          bestColorScore = score
-          bestColorPair = { left: p1, right: p2 }
-        }
-      }
-    }
-    if (bestColorPair) return bestColorPair
-  }
 
-  let best = null
-  let bestScore = -Infinity
-  const candidates = blobs.slice(0, 12)
-  for (let i = 0; i < candidates.length; i += 1) {
-    for (let j = i + 1; j < candidates.length; j += 1) {
-      const a = candidates[i]
-      const b = candidates[j]
-      const left = a.x <= b.x ? a : b
-      const right = a.x <= b.x ? b : a
-      const dx = right.x - left.x
-      const dy = Math.abs(right.y - left.y)
-      if (dx < Math.max(14, markerSide * 0.18)) continue
-      if (dy > Math.max(markerSide * 1.45, h * 0.28)) continue
-      const areaScore = Math.log(left.count + right.count)
-      const score = dx - dy * 0.42 + areaScore * 18
-      if (score > bestScore) {
-        bestScore = score
-        best = { left, right }
-      }
-    }
-  }
-  return best
+function pickStickerPair(blobs, w, h, markerCorners) {
+  if (!blobs || blobs.length < 2) return null
+  // Prefer explicit role detection (red / blue)
+  const p1 = blobs.find(b => b.role === 'p1')
+  const p2 = blobs.find(b => b.role === 'p2')
+  if (p1 && p2) return p1.x <= p2.x ? { left: p1, right: p2 } : { left: p2, right: p1 }
+
+  // Fallback: choose leftmost and rightmost among top candidates
+  const candidates = blobs.slice(0, 12).slice().sort((a, b) => a.x - b.x)
+  if (candidates.length < 2) return null
+  const left = candidates[0]
+  const right = candidates[candidates.length - 1]
+  const minSep = Math.max(14, (markerCorners?.length ? avgSidePx(markerCorners) * 0.18 : 14))
+  if (Math.abs(right.x - left.x) < minSep) return null
+  return { left, right }
 }
 
 function zoomAtDisplayPoint(currentView, factor, focus, imgW, imgH, cw, ch) {
@@ -799,7 +778,7 @@ export default function FrozenMeasure({
       if (currentPts.length >= 2) return  // 이미 2점 확정
 
       // 탭한 위치에서 in-canvas 8× 확대 모드로 진입하여 픽셀 단위 조정
-      handleTap(touch)
+      handleTap(e)
     }
 
     // ── Mouse (데스크톱 테스트) ────────────────────────────────────────────
@@ -887,7 +866,7 @@ export default function FrozenMeasure({
 
       {/* ── 캔버스 래퍼 (overflow:hidden 으로 확대 클립) ─ */}
       <div
-        ref={wrapperRef}
+        ref={(el) => { containerRef.current = el; wrapperRef.current = el }}
         style={{
           flex: 1,
           overflow: 'hidden',
@@ -901,7 +880,6 @@ export default function FrozenMeasure({
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'contain',
             display: 'block',
             transformOrigin: '0 0',
             transform: cssTransform,
@@ -910,8 +888,6 @@ export default function FrozenMeasure({
               : 'transform 0.2s ease',
             cursor: (!isZooming) ? 'crosshair' : 'default',
           }}
-          onTouchStart={!isZooming ? handleTap : undefined}
-          onClick={!isZooming ? handleTap : undefined}
         />
 
         {/* ── 확대 중 좌표 표시 ─────────────────────── */}

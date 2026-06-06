@@ -40,16 +40,17 @@ export function useCanvasZoomMeasure({ canvasRef, wrapperRef, pixelPerMm, onDone
   // ── 캔버스 탭 핸들러 ──────────────────────────────────────────
   const handleTap = useCallback((e) => {
     if (step !== 0 && step !== 2) return; // 대기 상태에서만
-    e.preventDefault();
+    e?.preventDefault?.();
 
     const canvas = canvasRef.current;
     const rect   = canvas.getBoundingClientRect();
-    const touch  = e.touches ? e.touches[0] : e;
+    // Support touchstart/touchend events: prefer touches[0], then changedTouches[0], then event
+    const touch  = (e && e.touches && e.touches[0]) || (e && e.changedTouches && e.changedTouches[0]) || e;
     const scaleX = canvas.width  / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    const px = Math.round((touch.clientX - rect.left) * scaleX);
-    const py = Math.round((touch.clientY - rect.top)  * scaleY);
+    const px = Math.round(((touch.clientX ?? touch.pageX) - rect.left) * scaleX);
+    const py = Math.round(((touch.clientY ?? touch.pageY) - rect.top)  * scaleY);
 
     setActive({ x: px, y: py });
     setCss(buildTransform(px, py));
