@@ -16,7 +16,7 @@ const HANDLE_VISUAL_R = 8
 const HANDLE_ARM      = 22
 const HIT_R           = 56
 const LOUPE_R         = 80
-const LOUPE_ZOOM      = 3.5
+const LOUPE_ZOOM      = 2.5
 const LOUPE_ABOVE     = 165
 const TAP_MAX_PX      = 28
 
@@ -282,12 +282,22 @@ function drawLoupe(ctx, img, layout, fingerDisp, imgPt, cw) {
   const loupeCY = Math.max(LOUPE_R + 10, fingerDisp.y - LOUPE_ABOVE)
 
   // 원형 클립 + 확대 이미지
-  ctx.save()
+  /*ctx.save()
   ctx.beginPath()
   ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
   ctx.clip()
   ctx.drawImage(img, srcX, srcY, srcW, srcH,
     loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
+  ctx.restore()*/
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(loupeCX, loupeCY, LOUPE_R, 0, Math.PI * 2)
+  ctx.clip()
+  ctx.filter = 'brightness(1.4) contrast(1.3)'
+  ctx.drawImage(img, srcX, srcY, srcW, srcH,
+    loupeCX - LOUPE_R, loupeCY - LOUPE_R, LOUPE_R * 2, LOUPE_R * 2)
+  ctx.filter = 'none'
   ctx.restore()
 
 
