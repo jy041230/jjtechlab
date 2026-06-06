@@ -1,11 +1,26 @@
 import { useState, useEffect } from 'react'
 import { fetchSheetData } from '../utils/sheetData'
 
+// 행에서 날짜를 추출한다 (시트 필드명이 환경마다 다를 수 있어 여러 후보를 시도)
+function getRowDate(r) {
+  const v = r.date ?? r.dateTime ?? r.datetime ?? r.timestamp
+    ?? r['날짜시간'] ?? r['날짜'] ?? r.ts ?? r.createdAt ?? null
+  if (!v) return null
+  const d = new Date(v)
+  return isNaN(d.getTime()) ? null : d
+}
+
+// 'YYYY-MM-DD' 문자열을 그 날의 시작/끝 시각으로 변환
+function dayStart(s) { const d = new Date(s); d.setHours(0, 0, 0, 0); return d }
+function dayEnd(s) { const d = new Date(s); d.setHours(23, 59, 59, 999); return d }
+
 export default function AnalysisScreen({ onBack }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [tab, setTab] = useState('stem')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   useEffect(() => {
     fetchSheetData()
@@ -16,8 +31,21 @@ export default function AnalysisScreen({ onBack }) {
   if (loading) return <div style={styles.center}>데이터 불러오는 중…</div>
   if (error) return <div style={styles.center}>오류: {error}</div>
 
-  const stemRows = (data?.stem ?? []).filter(r => r.treeGroup && r.cameraMm)
-  const soilRows = (data?.soil ?? []).filter(r => r.treeId)
+  // 날짜 범위 필터
+  const start = startDate ? dayStart(startDate) : null
+  const end = endDate ? dayEnd(endDate) : null
+  function inRange(r) {
+    if (!start && !end) return true
+    const d = getRowDate(r)
+    if (!d) return false
+    if (start && d < start) return false
+    if (end && d > end) return false
+    return true
+  }
+
+  const stemRows = (data?.stem ?? []).filter(r => r.treeGroup && r.cameraMm).filter(inRange)
+  const soilRows = (data?.soil ?? []).filter(r => r.treeId).filter(inRange)
+  const filterOn = !!(start || end)
 
   // 케이싱 조건별 줄기굵기 평균
   const groups = ['케이싱 1년', '케이싱 2년', '직수수목(대조수목)']
@@ -61,6 +89,39 @@ export default function AnalysisScreen({ onBack }) {
         <span style={styles.title}>데이터 분석</span>
         <div style={{ width: 60 }} />
       </header>
+
+      {/* 날짜 범위 지정 */}
+      <div style={styles.dateBar}>
+        <span style={styles.dateLabel}>기간</span>
+        <input
+          type="date"
+          value={startDate}
+          max={endDate || undefined}
+          onChange={e => setStartDate(e.target.value)}
+          style={styles.dateInput}
+        />
+        <span style={styles.dateTilde}>~</span>
+        <input
+          type="date"
+          value={endDate}
+          min={startDate || undefined}
+          onChange={e => setEndDate(e.target.value)}
+          style={styles.dateInput}
+        />
+        {filterOn && (
+          <button
+            onClick={() => { setStartDate(''); setEndDate('') }}
+            style={styles.dateReset}
+          >
+            전체
+          </button>
+        )}
+      </div>
+      {filterOn && (
+        <div style={styles.dateNote}>
+          선택 기간 줄기 {stemRows.length}건 · 토양 {soilRows.length}건
+        </div>
+      )}
 
       <div style={styles.tabs}>
         {[['stem', '줄기굵기'], ['soil', '토양'], ['accuracy', '정확도'], ['participant', '참여자']].map(([key, label]) => (
@@ -181,6 +242,12 @@ const styles = {
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#2d6a4f', color: '#fff' },
   backBtn: { background: 'none', border: 'none', color: '#fff', fontSize: 16, cursor: 'pointer' },
   title: { fontSize: 18, fontWeight: 700 },
+  dateBar: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#eaf3ec', borderBottom: '1px solid #d7e8dc', flexWrap: 'wrap' },
+  dateLabel: { fontSize: 12, fontWeight: 800, color: '#2d6a4f', flexShrink: 0 },
+  dateInput: { flex: 1, minWidth: 0, minHeight: 34, border: '1px solid #b7d2bf', borderRadius: 8, padding: '4px 8px', fontSize: 13, color: '#1b4332', background: '#fff' },
+  dateTilde: { fontSize: 13, color: '#668474', flexShrink: 0 },
+  dateReset: { minHeight: 34, padding: '4px 12px', border: 'none', borderRadius: 8, background: '#2d6a4f', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  dateNote: { padding: '6px 14px', fontSize: 12, color: '#466454', background: '#f3f9f4' },
   tabs: { display: 'flex', background: '#fff', borderBottom: '2px solid #e0e0e0' },
   tab: { flex: 1, padding: '10px 4px', border: 'none', background: 'none', fontSize: 13, fontWeight: 600, color: '#888', cursor: 'pointer' },
   tabActive: { color: '#2d6a4f', borderBottom: '3px solid #2d6a4f' },
