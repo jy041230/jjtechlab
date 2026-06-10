@@ -1,0 +1,109 @@
+/**
+ * treeSync.js — 수목 이력을 Supabase에 올리고, 고객 리포트용으로 다시 읽어오는 유틸
+ *
+ * 올리기: 농민 앱 IndexedDB(getResearchDatabaseRows) → trees / tree_records 테이블
+ * 읽기:   고객 갤러리·리포트 화면이 Supabase에서 수목 목록·기록을 조회
+ *
+ * sensorApi.js 와 동일하게 REST 직접 호출 방식. 추가 라이브러리 없음.
+ */
+import { SUPABASE_URL, SB_HEADERS, isSupabaseConfigured } from './supabaseClient'
+import { getResearchDatabaseRows } from './db'
+
+const REST = `${SUPABASE_URL}/rest/v1`
+
+function toNum(v) {
+  if (v === null || v === undefined || v === '') return null
+  const n = parseFloat(v)
+  return isNaN(n) ? null : n
+}
+
+/** ── 올리기: 농민 앱 이력 전체를 Supabase로 동기화 ── */
+export async function syncTreesToSupabase() {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase 키가 설정되지 않았습니다. supabaseClient.js를 확인하세요.')
+  }
+
+  const rows = await getResearchDatabaseRows()
+  if (!rows.length) return { trees: 0, records: 0 }
+
+  // 1) 수목 정보(trees) — 수목ID별 중복 제거, 대표 사진은 첫 이미지
+  const treeMap = new Map()
+  for (const r of rows) {
+    const id = r.수목ID
+    if (!id) continue
+    if (!treeMap.has(id)) {
+      treeMap.set(id, {
+        tree_id: id,
+        tree_group: r.수목구분 || null,
+        thumbnail: firstImage(r.이미지자료),
+        location: r.비고 || null,
+        note: null,
+      })
+    } else if (!treeMap.get(id).thumbnail) {
+      treeMap.get(id).thumbnail = firstImage(r.이미지자료)
+    }
+  }
+  const trees = [...treeMap.values()]
+
+  // 2) 측정 이력(tree_records)
+  const records = rows
+    .filter(r => r.수목ID)
+    .map(r => ({
+      tree_id: r.수목ID,
+      measured_at: r.날짜시간 || null,
+      participant_id: r.참여자ID || null,
+      stem_mm: toNum(r.줄기직경mm),
+      soil_ph: toNum(r.토양PH),
+      soil_moisture: toNum(r.토양수분),
+      soil_temp: toNum(r.토양온도),
+      photo: firstImage(r.이미지자료),
+      memo: r.음성전사 || r.비고 || null,
+      record_type: r.사건유형 || null,
+    }))
+
+  // upsert: 같은 tree_id면 갱신 (중복 방지)
+  await postRows('trees', trees, 'tree_id')
+  await postRows('tree_records', records)
+
+  return { trees: trees.length, records: records.length }
+}
+
+/** ── 읽기: 고객 갤러리용 수목 목록 ── */
+export async function fetchTrees() {
+  const res = await fetch(`${REST}/trees?select=*&order=tree_id.asc`, { headers: SB_HEADERS })
+  if (!res.ok) throw new Error(`수목 목록 조회 실패 (${res.status})`)
+  return res.json()
+}
+
+/** ── 읽기: 특정 수목의 측정 이력 (성장 곡선·타임라인용) ── */
+export async function fetchTreeRecords(treeId) {
+  const url = `${REST}/tree_records?tree_id=eq.${encodeURIComponent(treeId)}` +
+    `&select=*&order=measured_at.asc`
+  const res = await fetch(url, { headers: SB_HEADERS })
+  if (!res.ok) throw new Error(`수목 기록 조회 실패 (${res.status})`)
+  return res.json()
+}
+
+/* ── 내부 헬퍼 ── */
+function firstImage(imageField) {
+  if (!imageField) return null
+  const first = String(imageField).split(' | ')[0].trim()
+  return first || null
+}
+
+async function postRows(table, rows, conflictKey) {
+  if (!rows.length) return
+  const headers = { ...SB_HEADERS, Prefer: conflictKey ? 'resolution=merge-duplicates' : 'return=minimal' }
+  const url = conflictKey
+    ? `${REST}/${table}?on_conflict=${conflictKey}`
+    : `${REST}/${table}`
+  // 200건씩 끊어서 전송 (요청 크기 제한 회피)
+  for (let i = 0; i < rows.length; i += 200) {
+    const chunk = rows.slice(i, i + 200)
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(chunk) })
+    if (!res.ok) {
+      const txt = await res.text()
+      throw new Error(`${table} 업로드 실패 (${res.status}): ${txt.slice(0, 200)}`)
+    }
+  }
+}
