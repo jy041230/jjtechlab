@@ -34,6 +34,7 @@ import LiveCamera     from './LiveCamera'
 import FrozenMeasure  from './FrozenMeasure'
 import SoilInputPanel from './SoilInputPanel'
 import { fetchLatestSensor, formatTime, formatAge, isStale } from '../utils/sensorApi'
+import { syncTreesToSupabase } from '../utils/treeSync'
 import VoiceScreen    from './VoiceScreen'
 import styles from './MeasurementScreen.module.css'
 
@@ -165,7 +166,7 @@ function isNearMarker(ix, iy, markerCorners, margin = 30) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onGoSensor, onRegisterBack }) {
+export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onGoSensor, onGoReport, onRegisterBack }) {
   const [phase, setPhase]               = useState(PHASE.IDLE)
   const [selectedType, setSelectedType] = useState(MEASUREMENT_TYPES[0])
 
@@ -676,6 +677,18 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
       grades:    field.grades ?? [],
       isSoil:    true,
     })
+  }
+
+  // ── 수목 이력을 Supabase로 올리기 (고객 리포트 동기화) ──
+  async function handleTreeSync() {
+    if (!window.confirm('이 휴대폰의 측정 이력을 고객 열람용 서버로 올릴까요?')) return
+    try {
+      const res = await syncTreesToSupabase()
+      alert(`업로드 완료\n수목 ${res.trees}그루 · 기록 ${res.records}건`)
+    } catch (err) {
+      console.error('[수목 동기화 실패]', err)
+      alert('업로드에 실패했습니다.\n' + (err?.message || '인터넷 연결을 확인해 주세요.'))
+    }
   }
 
   // ── ESP32 토양센서 최신값 불러오기 → 토양수분·토양온도 자동 채움 ──
@@ -1598,6 +1611,14 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.typeBtn} onClick={onGoSensor}>
               <span className={styles.typeIcon}>📡</span>
               <span className={styles.typeLabel}>토양센서</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoReport}>
+              <span className={styles.typeIcon}>🌳</span>
+              <span className={styles.typeLabel}>고객 리포트</span>
+            </button>
+            <button className={styles.typeBtn} onClick={handleTreeSync}>
+              <span className={styles.typeIcon}>☁️</span>
+              <span className={styles.typeLabel}>이력 올리기</span>
             </button>
             <button className={styles.typeBtn} onClick={onGoResearch}>
               <span className={styles.typeIcon}>📈</span>
