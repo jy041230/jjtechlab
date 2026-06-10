@@ -12,7 +12,7 @@
 export const SUPABASE_URL = 'https://qeyzyvsxsxwybswciagu.supabase.co'
 
 // ↓↓↓ 여기에 본인 게시 가능한 키를 붙여넣으세요 (sb_publishable_ 로 시작) ↓↓↓
-export const SUPABASE_ANON_KEY = 'sb_publishable_여기에_본인_키_전체를_붙여넣기'
+export const SUPABASE_ANON_KEY = 'sb_publishable_4mQHgJSC74IHomVXbiqbOQ__HqL0J3j'
 // ↑↑↑ 따옴표 안의 글자만 바꾸세요. 따옴표는 지우지 마세요. ↑↑↑
 
 export const SB_HEADERS = {
