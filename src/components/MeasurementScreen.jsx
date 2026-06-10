@@ -1096,8 +1096,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
     [PHASE.PLACING_POINTS]: 'placing_points',
   }[phase] ?? 'placing_points'
 
+  const isMenuScreen = !isCameraMode && !isSoilInputScreen && !isSoilSubScreen && !isCaliperScreen && !isResearchDbScreen && !isJournalSubScreen && !isListViewScreen && !isCameraMethodScreen
+
   return (
-    <div className={`${styles.screen} ${!isCameraMode ? styles.screenScroll : ''}`}>
+    <div className={`${styles.screen} ${isMenuScreen ? styles.screenScroll : ''}`}>
 
       {!isCameraMode && (
         isResearchDbScreen ? (
