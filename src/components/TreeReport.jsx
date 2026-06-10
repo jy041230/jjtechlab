@@ -124,9 +124,12 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
 
 /* ── 리포트 본문 (인쇄 영역) ── */
 function ReportBody({ tree, records }) {
-  const stemSeries = records
-    .filter(r => r.stem_mm !== null && r.stem_mm !== undefined)
-    .map(r => ({ t: r.measured_at, v: Number(r.stem_mm) }))
+  // 같은 날짜끼리 묶어 평균으로 합치기 (줄이 여러 개로 흩어지지 않게)
+  const daily = groupByDay(records)
+
+  const stemSeries = daily
+    .filter(d => d.stem_mm !== null)
+    .map(d => ({ t: d.date, v: d.stem_mm }))
 
   return (
     <>
@@ -139,7 +142,7 @@ function ReportBody({ tree, records }) {
         <Info label="수목 번호" value={tree.tree_id} />
         <Info label="수목 구분" value={tree.tree_group || '-'} />
         <Info label="재배 위치" value={tree.location || '영산대학교 양산캠퍼스 농장'} />
-        <Info label="기록 건수" value={`${records.length}건`} />
+        <Info label="관찰 일수" value={`${daily.length}일`} />
       </section>
 
       {tree.thumbnail && (
@@ -155,7 +158,7 @@ function ReportBody({ tree, records }) {
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>관리 이력</h2>
-        <Timeline records={records} />
+        <Timeline days={daily} />
       </section>
 
       <section className={styles.block}>
@@ -214,32 +217,86 @@ function GrowthChart({ series }) {
       <text x={Math.min(x(last), W - PAD.r - 28)} y={y(series[last].v) - 8} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1b4332">
         {series[last].v.toFixed(1)}mm
       </text>
-      <text x={PAD.l} y={H - 8} textAnchor="start" fontSize="10" fill="#88998d">{fmtDate(series[0].t)}</text>
-      <text x={W - PAD.r} y={H - 8} textAnchor="end" fontSize="10" fill="#88998d">{fmtDate(series[last].t)}</text>
+      <text x={PAD.l} y={H - 8} textAnchor="start" fontSize="10" fill="#88998d">{series[0].t}</text>
+      <text x={W - PAD.r} y={H - 8} textAnchor="end" fontSize="10" fill="#88998d">{series[last].t}</text>
     </svg>
   )
 }
 
-/* ── 관리 이력 타임라인 ── */
-function Timeline({ records }) {
-  if (!records.length) return <div className={styles.empty}>관리 이력이 없습니다.</div>
+/* ── 관리 이력 타임라인 (날짜별 1줄) ── */
+function Timeline({ days }) {
+  if (!days.length) return <div className={styles.empty}>관리 이력이 없습니다.</div>
   return (
     <ul className={styles.timeline}>
-      {records.map((r, i) => (
+      {days.map((d, i) => (
         <li key={i} className={styles.tlItem}>
-          <div className={styles.tlDate}>{fmtDateTime(r.measured_at)}</div>
+          <div className={styles.tlDate}>
+            {d.date}
+            {d.count > 1 && <span className={styles.tlCount}> · {d.count}회 측정</span>}
+          </div>
           <div className={styles.tlContent}>
-            {r.stem_mm != null && <span className={styles.tlTag}>줄기 {Number(r.stem_mm).toFixed(1)}mm</span>}
-            {r.soil_ph != null && <span className={styles.tlTag}>pH {r.soil_ph}</span>}
-            {r.soil_moisture != null && <span className={styles.tlTag}>수분 {r.soil_moisture}%</span>}
-            {r.soil_temp != null && <span className={styles.tlTag}>지온 {r.soil_temp}℃</span>}
-            {r.air_temp != null && <span className={styles.tlTag}>기온 {r.air_temp}℃</span>}
-            {r.memo && <div className={styles.tlMemo}>{r.memo}</div>}
+            {d.stem_mm != null && <span className={styles.tlTag}>줄기 {d.stem_mm.toFixed(1)}mm</span>}
+            {d.soil_ph != null && <span className={styles.tlTag}>pH {d.soil_ph.toFixed(1)}</span>}
+            {d.soil_moisture != null && <span className={styles.tlTag}>수분 {d.soil_moisture.toFixed(0)}%</span>}
+            {d.soil_temp != null && <span className={styles.tlTag}>지온 {d.soil_temp.toFixed(1)}℃</span>}
+            {d.air_temp != null && <span className={styles.tlTag}>기온 {d.air_temp.toFixed(1)}℃</span>}
+            {d.humidity != null && <span className={styles.tlTag}>습도 {d.humidity.toFixed(0)}%</span>}
+            {d.memo && <div className={styles.tlMemo}>{d.memo}</div>}
           </div>
         </li>
       ))}
     </ul>
   )
+}
+
+/* 같은 날짜 기록을 묶어 평균으로 합치는 헬퍼 */
+function groupByDay(records) {
+  const map = new Map()
+  for (const r of records) {
+    const d = new Date(r.measured_at)
+    if (isNaN(d.getTime())) continue
+    const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        sortAt: d.getTime(),
+        date: `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`,
+        stem: [], ph: [], moist: [], stemp: [], atemp: [], hum: [],
+        memos: [],
+      })
+    }
+    const g = map.get(key)
+    push(g.stem, r.stem_mm)
+    push(g.ph, r.soil_ph)
+    push(g.moist, r.soil_moisture)
+    push(g.stemp, r.soil_temp)
+    push(g.atemp, r.air_temp)
+    push(g.hum, r.humidity)
+    if (r.memo) g.memos.push(r.memo)
+  }
+  return [...map.values()]
+    .sort((a, b) => a.sortAt - b.sortAt)
+    .map(g => ({
+      date: g.date,
+      count: Math.max(g.stem.length, g.ph.length, g.moist.length, g.stemp.length, 1),
+      stem_mm: avg(g.stem),
+      soil_ph: avg(g.ph),
+      soil_moisture: avg(g.moist),
+      soil_temp: avg(g.stemp),
+      air_temp: avg(g.atemp),
+      humidity: avg(g.hum),
+      memo: g.memos.join(' · ') || null,
+    }))
+}
+
+function push(arr, v) {
+  if (v === null || v === undefined || v === '') return
+  const n = Number(v)
+  if (!isNaN(n)) arr.push(n)
+}
+function avg(arr) {
+  if (!arr.length) return null
+  return arr.reduce((s, x) => s + x, 0) / arr.length
 }
 
 /* ── 공통 ── */
@@ -253,16 +310,6 @@ function Header({ onBack, title }) {
   )
 }
 
-function fmtDate(s) {
-  const d = new Date(s)
-  if (isNaN(d.getTime())) return ''
-  return `${d.getMonth() + 1}/${d.getDate()}`
-}
-function fmtDateTime(s) {
-  const d = new Date(s)
-  if (isNaN(d.getTime())) return ''
-  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`
-}
 function today() {
   const d = new Date()
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`

@@ -317,3 +317,9 @@
   .screen { height: auto; overflow: visible; }
   .report { overflow: visible; padding: 0; }
 }
+
+.tlCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: #88998d;
+}
