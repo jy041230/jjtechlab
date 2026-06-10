@@ -12,6 +12,15 @@
   overflow: hidden;
 }
 
+/* 측정 메뉴 화면: 내용이 길면 화면 전체가 세로 스크롤 */
+.screenScroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.screenScroll .cameraArea {
+  flex: 0 0 auto;
+}
+
 /* ── 헤더 ── */
 .header {
   display: flex;
@@ -109,11 +118,7 @@
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  align-content: flex-start;
-  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
 }
 
 .typeBtn {
@@ -205,6 +210,10 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
+}
+.screenScroll .idlePlaceholder {
+  height: auto;
+  padding: 18px 0;
 }
 .idleHint {
   font-size: 18px;

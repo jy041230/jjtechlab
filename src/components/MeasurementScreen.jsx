@@ -1097,7 +1097,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   }[phase] ?? 'placing_points'
 
   return (
-    <div className={styles.screen}>
+    <div className={`${styles.screen} ${!isCameraMode ? styles.screenScroll : ''}`}>
 
       {!isCameraMode && (
         isResearchDbScreen ? (
