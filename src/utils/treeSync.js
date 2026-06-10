@@ -8,6 +8,7 @@
  */
 import { SUPABASE_URL, SB_HEADERS, isSupabaseConfigured } from './supabaseClient'
 import { getResearchDatabaseRows } from './db'
+import { fetchSheetData } from './sheetData'
 
 const REST = `${SUPABASE_URL}/rest/v1`
 
@@ -17,16 +18,27 @@ function toNum(v) {
   return isNaN(n) ? null : n
 }
 
-/** ── 올리기: 농민 앱 이력 전체를 Supabase로 동기화 ── */
+/** ── 올리기: 농민 앱 이력 + 구글시트 전체를 Supabase로 동기화 ── */
 export async function syncTreesToSupabase() {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 키가 설정되지 않았습니다. supabaseClient.js를 확인하세요.')
   }
 
-  const rows = await getResearchDatabaseRows()
+  // 1) 이 휴대폰 IndexedDB 이력
+  const localRows = await getResearchDatabaseRows()
+
+  // 2) 구글시트의 모든 수목 (다른 폰·다른 측정자 포함)
+  let sheetRows = []
+  try {
+    sheetRows = await fetchSheetRows()
+  } catch (e) {
+    console.warn('[구글시트 읽기 실패 — 휴대폰 데이터만 올립니다]', e)
+  }
+
+  const rows = [...localRows, ...sheetRows]
   if (!rows.length) return { trees: 0, records: 0 }
 
-  // 1) 수목 정보(trees) — 수목ID별 중복 제거, 대표 사진은 첫 이미지
+  // 수목 정보(trees) — 수목ID별 중복 제거, 대표 사진은 첫 이미지
   const treeMap = new Map()
   for (const r of rows) {
     const id = r.수목ID
@@ -36,21 +48,23 @@ export async function syncTreesToSupabase() {
         tree_id: id,
         tree_group: r.수목구분 || null,
         thumbnail: firstImage(r.이미지자료),
-        location: r.비고 || null,
+        location: '영산대학교 양산캠퍼스 농장',
         note: null,
       })
-    } else if (!treeMap.get(id).thumbnail) {
-      treeMap.get(id).thumbnail = firstImage(r.이미지자료)
+    } else {
+      const t = treeMap.get(id)
+      if (!t.tree_group && r.수목구분) t.tree_group = r.수목구분
+      if (!t.thumbnail) t.thumbnail = firstImage(r.이미지자료)
     }
   }
   const trees = [...treeMap.values()]
 
-  // 2) 측정 이력(tree_records)
+  // 측정 이력(tree_records)
   const records = rows
     .filter(r => r.수목ID)
     .map(r => ({
       tree_id: r.수목ID,
-      measured_at: r.날짜시간 || null,
+      measured_at: r.날짜시간 || r.날짜 || null,
       participant_id: r.참여자ID || null,
       stem_mm: toNum(r.줄기직경mm),
       soil_ph: toNum(r.토양PH),
@@ -61,11 +75,43 @@ export async function syncTreesToSupabase() {
       record_type: r.사건유형 || null,
     }))
 
-  // upsert: 같은 tree_id면 갱신 (중복 방지)
   await postRows('trees', trees, 'tree_id')
   await postRows('tree_records', records)
 
   return { trees: trees.length, records: records.length }
+}
+
+/** 구글시트 stem/soil 시트를 연구DB 행 형식으로 변환 */
+async function fetchSheetRows() {
+  const data = await fetchSheetData()
+  const rows = []
+  for (const r of (data.stem ?? [])) {
+    rows.push({
+      날짜: String(r.date ?? '').slice(0, 10),
+      날짜시간: r.date,
+      참여자ID: r.participantId,
+      수목ID: r.treeId,
+      수목구분: r.treeGroup,
+      줄기직경mm: r.cameraMm,
+      비고: '줄기측정',
+      사건유형: '관찰',
+    })
+  }
+  for (const r of (data.soil ?? [])) {
+    rows.push({
+      날짜: String(r.date ?? '').slice(0, 10),
+      날짜시간: r.date,
+      참여자ID: r.participantId,
+      수목ID: r.treeId,
+      수목구분: r.treeGroup || '',
+      토양PH: r.ph,
+      토양수분: r.moisture,
+      토양온도: r.temp,
+      비고: '토양측정',
+      사건유형: '관찰',
+    })
+  }
+  return rows
 }
 
 /** ── 읽기: 고객 갤러리용 수목 목록 ── */
