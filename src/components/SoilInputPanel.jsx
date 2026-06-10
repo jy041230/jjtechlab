@@ -24,6 +24,8 @@ export default function SoilInputPanel({
   onPhotoRequest,
   onPhotoImportRequest,
   onSave,
+  onSensorFetch,
+  sensorStatus,
 }) {
   const [photoExpanded, setPhotoExpanded] = useState(false)
   const [editingField, setEditingField] = useState(null)
@@ -99,6 +101,32 @@ export default function SoilInputPanel({
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {onSensorFetch && (
+        <div className={styles.sensorRow}>
+          <button
+            type="button"
+            className={styles.sensorBtn}
+            onClick={onSensorFetch}
+            disabled={sensorStatus?.loading}
+          >
+            {sensorStatus?.loading ? '⏳ 불러오는 중...' : '📡 센서값 자동으로 불러오기'}
+          </button>
+          {sensorStatus?.message && (
+            <div
+              className={`${styles.sensorMsg} ${
+                sensorStatus.kind === 'warn'
+                  ? styles.sensorMsgWarn
+                  : sensorStatus.kind === 'error'
+                    ? styles.sensorMsgError
+                    : ''
+              }`}
+            >
+              {sensorStatus.message}
+            </div>
+          )}
         </div>
       )}
 

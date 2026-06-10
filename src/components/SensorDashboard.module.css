@@ -1,0 +1,234 @@
+/* SensorDashboard.module.css — 토양센서 모니터링 화면 */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: #f7f9f7;
+  overflow: hidden;
+}
+
+.header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #2d6a4f;
+  color: #fff;
+}
+
+.backBtn {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  border: none;
+}
+
+.title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.refreshBtn {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  border: none;
+}
+
+.refreshBtn:disabled {
+  opacity: 0.6;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── 측정 시각 표시 ── */
+.timeBadge {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eaf4ee;
+  border: 1px solid #b7d2bf;
+  color: #1b4332;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.timeBadgeStale {
+  background: #fdf3e3;
+  border-color: #e8c98a;
+  color: #7a5a16;
+}
+
+.staleNote {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #9a6b10;
+}
+
+.errorBox {
+  padding: 14px 12px;
+  border-radius: 12px;
+  background: #fdecec;
+  border: 1px solid #e8b3b3;
+  color: #8c2f2f;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* ── 최신값 카드 3개 ── */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+@media (max-width: 420px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e1e8e1;
+  border-radius: 14px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cardIcon {
+  font-size: 18px;
+}
+
+.cardLabel {
+  font-size: 14px;
+  font-weight: 900;
+  color: #1b4332;
+}
+
+.cardValue {
+  font-size: 34px;
+  font-weight: 900;
+  color: #2d6a4f;
+  line-height: 1.1;
+}
+
+.cardUnit {
+  font-size: 14px;
+  font-weight: 800;
+  color: #43624f;
+  margin-left: 3px;
+}
+
+.cardStatus {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.statusOk {
+  background: #eaf4ee;
+  color: #1b4332;
+}
+
+.statusWarn {
+  background: #fdf3e3;
+  color: #9a6b10;
+}
+
+.statusNone {
+  background: #efefef;
+  color: #777;
+}
+
+.cardRange {
+  font-size: 11px;
+  font-weight: 700;
+  color: #88998d;
+}
+
+/* ── 추이 차트 ── */
+.chartWrap {
+  background: #fff;
+  border: 1px solid #e1e8e1;
+  border-radius: 14px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chartTabs {
+  display: flex;
+  gap: 6px;
+}
+
+.chartTab {
+  flex: 1;
+  min-height: 38px;
+  border-radius: 10px;
+  border: 1px solid #cfe0d4;
+  background: #f4f8f5;
+  color: #43624f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.chartTabActive {
+  background: #2d6a4f;
+  border-color: #2d6a4f;
+  color: #fff;
+}
+
+.chartSvg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chartHint {
+  font-size: 12px;
+  font-weight: 700;
+  color: #88998d;
+  text-align: center;
+}
+
+.chartEmpty {
+  padding: 20px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #88998d;
+}

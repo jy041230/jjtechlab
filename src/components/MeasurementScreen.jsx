@@ -33,6 +33,7 @@ import { parseExcelSoil } from '../utils/excelParser'
 import LiveCamera     from './LiveCamera'
 import FrozenMeasure  from './FrozenMeasure'
 import SoilInputPanel from './SoilInputPanel'
+import { fetchLatestSensor, formatTime, formatAge, isStale } from '../utils/sensorApi'
 import VoiceScreen    from './VoiceScreen'
 import styles from './MeasurementScreen.module.css'
 
@@ -164,7 +165,7 @@ function isNearMarker(ix, iy, markerCorners, margin = 30) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onRegisterBack }) {
+export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onGoSensor, onRegisterBack }) {
   const [phase, setPhase]               = useState(PHASE.IDLE)
   const [selectedType, setSelectedType] = useState(MEASUREMENT_TYPES[0])
 
@@ -177,6 +178,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   const [debugInfo,     setDebugInfo]     = useState(null)
 
   const [soilValues,  setSoilValues]  = useState({})
+  const [sensorStatus, setSensorStatus] = useState(null)
   const [excelRows,   setExcelRows]   = useState(null)
   const [excelError,  setExcelError]  = useState('')
   const excelFileRef = useRef(null)
@@ -676,6 +678,35 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
     })
   }
 
+  // ── ESP32 토양센서 최신값 불러오기 → 토양수분·토양온도 자동 채움 ──
+  async function handleSensorFetch() {
+    setSensorStatus({ loading: true })
+    try {
+      const latest = await fetchLatestSensor()
+      if (!latest) {
+        setSensorStatus({ kind: 'warn', message: '저장된 센서 데이터가 없습니다. 센서 전원을 확인해 주세요.' })
+        return
+      }
+      setSoilValues(prev => {
+        const next = { ...prev }
+        if (latest.soilMoisture !== null) next['토양수분'] = latest.soilMoisture
+        if (latest.temperature  !== null) next['토양온도'] = latest.temperature
+        return next
+      })
+      const stale = isStale(latest.createdAt)
+      const ecText = latest.ec !== null ? ` · EC ${latest.ec.toFixed(2)} mS/cm (참고)` : ''
+      setSensorStatus({
+        kind: stale ? 'warn' : 'ok',
+        message:
+          `센서 측정 ${formatTime(latest.createdAt)} (${formatAge(latest.createdAt)})` + ecText +
+          (stale ? '\n⚠️ 오래된 값입니다. 센서 전원이 꺼져 있을 수 있으니 확인 후 사용하세요.' : ''),
+      })
+    } catch (err) {
+      console.error('[센서 불러오기 실패]', err)
+      setSensorStatus({ kind: 'error', message: '센서 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.' })
+    }
+  }
+
   async function handleSoilSaveAll() {
     const records = Object.entries(soilValues)
       .filter(([, v]) => v !== null && v !== undefined)
@@ -692,6 +723,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
       console.error('[DB 저장 실패]', err)
     }
     setSoilValues({})
+    setSensorStatus(null)
     setFrozenSrc(null)
     setPhase(PHASE.CONFIRMED)
     setTimeout(() => setPhase(PHASE.IDLE), 2000)
@@ -704,6 +736,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
     }
     setFrozenSrc(null)
     setSoilValues({})
+    setSensorStatus(null)
     setExcelRows(null)
     setPhase(PHASE.IDLE)
   }
@@ -1377,6 +1410,8 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
               soilPhotoFileRef.current.click()
             }}
             onSave={handleSoilSaveAll}
+            onSensorFetch={handleSensorFetch}
+            sensorStatus={sensorStatus}
           />
         )}
 
@@ -1559,6 +1594,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.typeBtn} onClick={handleCompleteClearPhoneData}>
               <span className={styles.typeIcon}>🗑️</span>
               <span className={styles.typeLabel}>완전삭제</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoSensor}>
+              <span className={styles.typeIcon}>📡</span>
+              <span className={styles.typeLabel}>토양센서</span>
             </button>
             <button className={styles.typeBtn} onClick={onGoResearch}>
               <span className={styles.typeIcon}>📈</span>

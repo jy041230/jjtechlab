@@ -369,3 +369,50 @@
     padding-bottom: 5px;
   }
 }
+
+/* ── 센서값 자동 불러오기 (ESP32 토양센서 연동) ── */
+.sensorRow {
+  flex-shrink: 0;
+  margin: 8px 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sensorBtn {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1.5px solid #2d6a4f;
+  background: #eaf4ee;
+  color: #1b4332;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.sensorBtn:disabled {
+  opacity: 0.6;
+}
+
+.sensorMsg {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #eaf4ee;
+  border: 1px solid #b7d2bf;
+  color: #1b4332;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.sensorMsgWarn {
+  background: #fdf3e3;
+  border-color: #e8c98a;
+  color: #7a5a16;
+}
+
+.sensorMsgError {
+  background: #fdecec;
+  border-color: #e8b3b3;
+  color: #8c2f2f;
+}
