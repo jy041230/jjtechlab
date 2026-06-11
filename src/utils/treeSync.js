@@ -18,6 +18,21 @@ function toNum(v) {
   return isNaN(n) ? null : n
 }
 
+/** 어떤 날짜 문자열이든 유효한 ISO 문자열로 변환. 변환 불가 시 null */
+function toISO(v) {
+  if (!v) return null
+  // 이미 표준에 가까운 ISO면 Date가 파싱함
+  let d = new Date(v)
+  if (!isNaN(d.getTime())) return d.toISOString()
+  // 'YYYY-MM-DD...' 앞 10자리만 떼어 재시도 (깨진 꼬리 제거)
+  const head = String(v).match(/^\d{4}-\d{2}-\d{2}/)
+  if (head) {
+    d = new Date(head[0])
+    if (!isNaN(d.getTime())) return d.toISOString()
+  }
+  return null
+}
+
 /** ── 올리기: 농민 앱 이력 + 구글시트 전체를 Supabase로 동기화 ── */
 export async function syncTreesToSupabase() {
   if (!isSupabaseConfigured()) {
@@ -64,7 +79,7 @@ export async function syncTreesToSupabase() {
     .filter(r => r.수목ID)
     .map(r => ({
       tree_id: r.수목ID,
-      measured_at: r.날짜시간 || r.날짜 || null,
+      measured_at: toISO(r.날짜시간 || r.날짜),
       participant_id: r.참여자ID || null,
       stem_mm: toNum(r.줄기직경mm),
       soil_ph: toNum(r.토양PH),
