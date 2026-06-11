@@ -9,7 +9,7 @@
  */
 
 // ↓↓↓ 기상청 인증키를 여기에 붙여넣으세요 (공공데이터포털 일반 인증키 Decoding) ↓↓↓
-const WEATHER_API_KEY = 'tr9ncEOh7i7MGR8Utm2w+CRRcyYlTtgN+l3pusI3hhAi+oJ43xp7hwXxsRByYC1LfufdhJkqCDJxLzIZkWMfzw=='
+const WEATHER_API_KEY = '기상청_인증키를_여기에_붙여넣기'
 // ↑↑↑ 따옴표 안의 글자만 바꾸세요 ↑↑↑
 
 // 양산시청 기상청 격자 좌표
