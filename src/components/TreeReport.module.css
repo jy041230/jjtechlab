@@ -323,3 +323,172 @@
   font-weight: 700;
   color: #88998d;
 }
+
+/* ── 갤러리 검색·필터 ── */
+.searchRow {
+  margin-bottom: 8px;
+}
+
+.searchInput {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid #cfe0d4;
+  border-radius: 12px;
+  font-size: 16px;
+  background: #fff;
+  color: #1b4332;
+  box-sizing: border-box;
+}
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.filterBtn {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #cfe0d4;
+  background: #f4f8f5;
+  color: #43624f;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.filterBtnActive {
+  background: #2d6a4f;
+  border-color: #2d6a4f;
+  color: #fff;
+}
+
+/* ── 리포트 내 수목 선택·날짜 필터 바 ── */
+.controlBar {
+  background: #eef3ee;
+  border-bottom: 1px solid #d5e2d8;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ctrlRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ctrlLabel {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1b4332;
+  min-width: 56px;
+}
+
+.ctrlSelect {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid #cfe0d4;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.ctrlDate {
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid #cfe0d4;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  color: #1b4332;
+}
+
+.ctrlTilde {
+  font-weight: 800;
+  color: #43624f;
+}
+
+.ctrlReset {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #cfe0d4;
+  border-radius: 10px;
+  background: #2d6a4f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* ── 줄기 펼침 ── */
+.tlTagBtn {
+  cursor: pointer;
+  border: 1px solid #b7d2bf;
+}
+
+.tlTagBtn:disabled {
+  cursor: default;
+}
+
+.tlTagOpen {
+  background: #2d6a4f;
+  color: #fff;
+}
+
+.stemDetail {
+  margin: 6px 0 4px 14px;
+  padding: 10px;
+  background: #f4f8f5;
+  border: 1px solid #d5e2d8;
+  border-radius: 10px;
+}
+
+.stemDetailHead {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1b4332;
+  margin-bottom: 6px;
+}
+
+.stemChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.stemChip {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b4332;
+  background: #fff;
+  border: 1px solid #cfe0d4;
+  border-radius: 8px;
+  padding: 3px 8px;
+}
+
+/* ── 기상 요약 ── */
+.weatherGrid {
+  display: flex;
+  gap: 10px;
+}
+
+.weatherItem {
+  flex: 1;
+  background: #f4f8f5;
+  border: 1px solid #e1e8e1;
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.weatherIcon { font-size: 22px; }
+.weatherLabel { font-size: 13px; font-weight: 700; color: #88998d; margin-top: 4px; }
+.weatherValue { font-size: 24px; font-weight: 900; color: #2d6a4f; }
+.weatherRange { font-size: 12px; font-weight: 700; color: #88998d; }

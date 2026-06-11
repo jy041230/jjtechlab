@@ -28,6 +28,10 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [groupFilter, setGroupFilter] = useState('전체')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   // 수목 목록 로드
   useEffect(() => {
@@ -80,13 +84,47 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
 
   // ── 리포트 상세 화면 ──
   if (tree) {
+    // 날짜 기간으로 기록 거르기
+    const inRange = records.filter(r => {
+      const d = (r.measured_at || '').slice(0, 10)
+      if (fromDate && d < fromDate) return false
+      if (toDate && d > toDate) return false
+      return true
+    })
+    const sortedTrees = [...trees].sort((a, b) => (a.tree_id || '').localeCompare(b.tree_id || ''))
+
     return (
       <div className={styles.screen}>
         <div className={styles.noPrint}>
           <Header onBack={() => setSelected(null)} title="수목 성장 리포트" />
+          <div className={styles.controlBar}>
+            <div className={styles.ctrlRow}>
+              <label className={styles.ctrlLabel}>수목 선택</label>
+              <select
+                className={styles.ctrlSelect}
+                value={selected}
+                onChange={e => { setSelected(e.target.value); setFromDate(''); setToDate('') }}
+              >
+                {sortedTrees.map(t => (
+                  <option key={t.tree_id} value={t.tree_id}>
+                    {t.tree_id}{t.tree_group ? ` (${t.tree_group})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.ctrlRow}>
+              <label className={styles.ctrlLabel}>기간</label>
+              <input type="date" className={styles.ctrlDate} value={fromDate} onChange={e => setFromDate(e.target.value)} />
+              <span className={styles.ctrlTilde}>~</span>
+              <input type="date" className={styles.ctrlDate} value={toDate} onChange={e => setToDate(e.target.value)} />
+              {(fromDate || toDate) && (
+                <button className={styles.ctrlReset} onClick={() => { setFromDate(''); setToDate('') }}>전체</button>
+              )}
+            </div>
+          </div>
         </div>
         <div className={styles.report} id="report-area">
-          <ReportBody tree={tree} records={records} />
+          <ReportBody tree={tree} records={inRange} />
         </div>
         <div className={`${styles.printBar} ${styles.noPrint}`}>
           <button className={styles.printBtn} onClick={() => window.print()}>
@@ -98,14 +136,45 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
   }
 
   // ── 갤러리 화면 ──
+  const groups = ['전체', ...Array.from(new Set(trees.map(t => t.tree_group).filter(Boolean)))]
+  const filtered = trees.filter(t => {
+    const okGroup = groupFilter === '전체' || t.tree_group === groupFilter
+    const okQuery = !query.trim() || (t.tree_id || '').toLowerCase().includes(query.trim().toLowerCase())
+    return okGroup && okQuery
+  })
+
   return (
     <div className={styles.screen}>
       <Header onBack={onBack} title="수목 성장 리포트" />
       <div className={styles.body}>
         {error && <div className={styles.errorBox}>{error}</div>}
-        <p className={styles.galleryHint}>수목 사진을 눌러 성장 이력을 확인하세요.</p>
+
+        <div className={styles.searchRow}>
+          <input
+            className={styles.searchInput}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="🔍 수목 번호 검색 (예: 케이싱1년-01)"
+          />
+        </div>
+
+        {groups.length > 1 && (
+          <div className={styles.filterRow}>
+            {groups.map(g => (
+              <button
+                key={g}
+                className={`${styles.filterBtn} ${groupFilter === g ? styles.filterBtnActive : ''}`}
+                onClick={() => setGroupFilter(g)}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <p className={styles.galleryHint}>수목을 눌러 성장 이력을 확인하세요. ({filtered.length}그루)</p>
         <div className={styles.gallery}>
-          {trees.map(t => (
+          {filtered.map(t => (
             <button key={t.tree_id} className={styles.treeCard} onClick={() => setSelected(t.tree_id)}>
               <div className={styles.thumb}>
                 {t.thumbnail
@@ -116,6 +185,9 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
               {t.tree_group && <div className={styles.treeGroup}>{t.tree_group}</div>}
             </button>
           ))}
+          {!filtered.length && !error && (
+            <div className={styles.empty}>조건에 맞는 수목이 없습니다.</div>
+          )}
         </div>
       </div>
     </div>
@@ -159,6 +231,11 @@ function ReportBody({ tree, records }) {
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>관리 이력</h2>
         <Timeline days={daily} />
+      </section>
+
+      <section className={styles.block}>
+        <h2 className={styles.blockTitle}>기상 정보</h2>
+        <WeatherSummary days={daily} />
       </section>
 
       <section className={styles.block}>
@@ -223,29 +300,85 @@ function GrowthChart({ series }) {
   )
 }
 
-/* ── 관리 이력 타임라인 (날짜별 1줄) ── */
+/* ── 관리 이력 타임라인 (날짜별 1줄, 줄기 누르면 개별값 펼침) ── */
 function Timeline({ days }) {
-  if (!days.length) return <div className={styles.empty}>관리 이력이 없습니다.</div>
+  const [openDate, setOpenDate] = useState(null)
+  if (!days.length) return <div className={styles.empty}>해당 기간에 관리 이력이 없습니다.</div>
   return (
     <ul className={styles.timeline}>
-      {days.map((d, i) => (
-        <li key={i} className={styles.tlItem}>
-          <div className={styles.tlDate}>
-            {d.date}
-            {d.count > 1 && <span className={styles.tlCount}> · {d.count}회 측정</span>}
-          </div>
-          <div className={styles.tlContent}>
-            {d.stem_mm != null && <span className={styles.tlTag}>줄기 {d.stem_mm.toFixed(1)}mm</span>}
-            {d.soil_ph != null && <span className={styles.tlTag}>pH {d.soil_ph.toFixed(1)}</span>}
-            {d.soil_moisture != null && <span className={styles.tlTag}>수분 {d.soil_moisture.toFixed(0)}%</span>}
-            {d.soil_temp != null && <span className={styles.tlTag}>지온 {d.soil_temp.toFixed(1)}℃</span>}
-            {d.air_temp != null && <span className={styles.tlTag}>기온 {d.air_temp.toFixed(1)}℃</span>}
-            {d.humidity != null && <span className={styles.tlTag}>습도 {d.humidity.toFixed(0)}%</span>}
-            {d.memo && <div className={styles.tlMemo}>{d.memo}</div>}
-          </div>
-        </li>
-      ))}
+      {days.map((d, i) => {
+        const hasMany = d.stem_values && d.stem_values.length > 1
+        const isOpen = openDate === d.date
+        return (
+          <li key={i} className={styles.tlItem}>
+            <div className={styles.tlDate}>
+              {d.date}
+              {d.count > 1 && <span className={styles.tlCount}> · {d.count}회 측정</span>}
+            </div>
+            <div className={styles.tlContent}>
+              {d.stem_mm != null && (
+                <button
+                  className={`${styles.tlTag} ${styles.tlTagBtn} ${isOpen ? styles.tlTagOpen : ''}`}
+                  onClick={() => setOpenDate(isOpen ? null : d.date)}
+                  disabled={!hasMany}
+                >
+                  줄기 {d.stem_mm.toFixed(1)}mm{hasMany ? (isOpen ? ' ▲' : ' ▼') : ''}
+                </button>
+              )}
+              {d.soil_ph != null && <span className={styles.tlTag}>pH {d.soil_ph.toFixed(1)}</span>}
+              {d.soil_moisture != null && <span className={styles.tlTag}>수분 {d.soil_moisture.toFixed(0)}%</span>}
+              {d.soil_temp != null && <span className={styles.tlTag}>지온 {d.soil_temp.toFixed(1)}℃</span>}
+              {d.air_temp != null && <span className={styles.tlTag}>기온 {d.air_temp.toFixed(1)}℃</span>}
+              {d.humidity != null && <span className={styles.tlTag}>습도 {d.humidity.toFixed(0)}%</span>}
+              {d.memo && <div className={styles.tlMemo}>{d.memo}</div>}
+            </div>
+            {isOpen && hasMany && (
+              <div className={styles.stemDetail}>
+                <div className={styles.stemDetailHead}>
+                  이날 측정한 줄기직경 {d.stem_values.length}회
+                  (최소 {d.stem_min.toFixed(1)} · 평균 {d.stem_mm.toFixed(1)} · 최대 {d.stem_max.toFixed(1)} mm)
+                </div>
+                <div className={styles.stemChips}>
+                  {d.stem_values.map((v, k) => (
+                    <span key={k} className={styles.stemChip}>{Number(v).toFixed(1)}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </li>
+        )
+      })}
     </ul>
+  )
+}
+
+/* ── 기상 요약 ── */
+function WeatherSummary({ days }) {
+  const temps = days.map(d => d.air_temp).filter(v => v != null)
+  const hums = days.map(d => d.humidity).filter(v => v != null)
+  if (!temps.length && !hums.length) {
+    return <div className={styles.empty}>기록된 기상 정보가 없습니다. (측정 시 기온·습도가 함께 저장됩니다)</div>
+  }
+  const mean = arr => arr.reduce((s, x) => s + x, 0) / arr.length
+  return (
+    <div className={styles.weatherGrid}>
+      {temps.length > 0 && (
+        <div className={styles.weatherItem}>
+          <div className={styles.weatherIcon}>🌡️</div>
+          <div className={styles.weatherLabel}>평균 기온</div>
+          <div className={styles.weatherValue}>{mean(temps).toFixed(1)}℃</div>
+          <div className={styles.weatherRange}>{Math.min(...temps).toFixed(1)} ~ {Math.max(...temps).toFixed(1)}℃</div>
+        </div>
+      )}
+      {hums.length > 0 && (
+        <div className={styles.weatherItem}>
+          <div className={styles.weatherIcon}>💧</div>
+          <div className={styles.weatherLabel}>평균 습도</div>
+          <div className={styles.weatherValue}>{mean(hums).toFixed(0)}%</div>
+          <div className={styles.weatherRange}>{Math.min(...hums).toFixed(0)} ~ {Math.max(...hums).toFixed(0)}%</div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -280,6 +413,9 @@ function groupByDay(records) {
       date: g.date,
       count: Math.max(g.stem.length, g.ph.length, g.moist.length, g.stemp.length, 1),
       stem_mm: avg(g.stem),
+      stem_values: g.stem.slice(),
+      stem_max: g.stem.length ? Math.max(...g.stem) : null,
+      stem_min: g.stem.length ? Math.min(...g.stem) : null,
       soil_ph: avg(g.ph),
       soil_moisture: avg(g.moist),
       soil_temp: avg(g.stemp),
