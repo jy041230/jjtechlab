@@ -40,14 +40,8 @@ import styles from './MeasurementScreen.module.css'
 
 // ── 측정 유형 ─────────────────────────────────────────────────────────────────
 const MEASUREMENT_TYPES = [
-  { id: '줄기직경', label: '줄기직경', unit: 'mm', icon: '🌿', usesCamera: true },
-  {
-    id: '캘리퍼스직경',
-    label: '캘리퍼스',
-    unit: 'mm',
-    icon: '📏',
-    usesCaliper: true,
-  },
+  { id: '가지직경', label: '가지직경', unit: 'mm', icon: '🌿', usesCamera: true },
+  { id: '근원직경', label: '근원직경', unit: 'mm', icon: '🪵', usesCamera: true },
   { id: '수고',     label: '수고',     unit: 'm',  icon: '🌳', usesCamera: true },
   { id: '토양측정', label: '토양측정', unit: null, icon: '🌱', usesCamera: false, usesSoilMeasure: true },
 ]
@@ -132,13 +126,13 @@ const SHOW_DEBUG_OVERLAY = false
 
 // ── 직경 도메인 검증 ──────────────────────────────────────────────────────────
 const DIAMETER_RANGE = {
-  '줄기직경': { min: 5,  max: 30  },
-  '흉고직경': { min: 10, max: 500 },
+  '근원직경': { min: 5,  max: 60 },
+  '가지직경': { min: 2,  max: 40 },
 }
 
 function validateDiameter(mm, typeId) {
   const { min, max } = DIAMETER_RANGE[typeId] ?? { min: 5, max: 30 }
-  const place = typeId === '흉고직경' ? '수간' : '줄기'
+  const place = typeId === '가지직경' ? '가지' : '줄기'
   if (mm < min) return { valid: false, msg: `${mm.toFixed(1)} mm — 최소(${min} mm) 미만. 마커·${place}가 같은 평면인지 확인 후 재측정.` }
   if (mm > max) return { valid: false, msg: `${mm.toFixed(1)} mm — 최대(${max} mm) 초과. 마커·${place}가 같은 평면인지 확인 후 재측정.` }
   return { valid: true, msg: null }
@@ -461,7 +455,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
       ? validateHeight(value)
       : validateDiameter(mm, selectedType.id)
     setResult({ value, mm, validation, pixelPerMm: measurePixelPerMm, pxDist })
-    if ((selectedType.id === '줄기직경' || selectedType.id === '흉고직경') && pxDist > 0) {
+    if ((selectedType.id === '근원직경' || selectedType.id === '가지직경') && pxDist > 0) {
       try {
         const latestCaliper = await findLatestCaliperDiameter(getResearchMeta().treeId)
         if (latestCaliper !== null && latestCaliper > 0) {
@@ -1869,7 +1863,7 @@ function ListViewPanel({ rows, loading }) {
       const treeIds = Array.from({ length: 10 }, (_, i) => `${prefix}-${String(i + 1).padStart(2, '0')}`)
       const treeData = treeIds.map(treeId => {
         const treeRows = groupRows.filter(r => r.수목ID === treeId)
-        const hasDiameter = treeRows.some(r => Number(r.줄기직경mm) > 0 || Number(r.캘리퍼스직경mm) > 0 || Number(r.흉고직경mm) > 0)
+        const hasDiameter = treeRows.some(r => Number(r.줄기직경mm) > 0 || Number(r.캘리퍼스직경mm) > 0 || Number(r.흉고직경mm) > 0 || Number(r.근원직경mm) > 0 || Number(r.가지직경mm) > 0)
         const hasPH = treeRows.some(r => Number(r.토양PH) > 0)
         const hasHumidity = treeRows.some(r => Number(r.토양수분) > 0)
         const hasTemp = treeRows.some(r => Number(r.토양온도) > 0)
