@@ -529,3 +529,74 @@
   font-weight: 700;
   color: #1b4332;
 }
+
+/* ── 최종 줄기 굵기 요약 ── */
+.stemSummary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.stemNow, .stemGrow {
+  flex: 1;
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.stemNow {
+  background: #2d6a4f;
+  color: #fff;
+}
+
+.stemNowLabel {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.stemNowValue {
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.stemNowUnit {
+  font-size: 16px;
+  font-weight: 800;
+  margin-left: 3px;
+}
+
+.stemNowDate {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.stemGrow {
+  background: #eaf4ee;
+  border: 1px solid #b7d2bf;
+}
+
+.stemGrowLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #43624f;
+}
+
+.stemGrowValue {
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.stemGrowValue.up { color: #2d6a4f; }
+.stemGrowValue.down { color: #b5651d; }
+
+.stemGrowDate {
+  font-size: 12px;
+  font-weight: 700;
+  color: #88998d;
+  margin-top: 2px;
+}

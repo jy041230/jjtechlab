@@ -227,6 +227,7 @@ function ReportBody({ tree, records }) {
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>줄기 직경 성장 곡선</h2>
+        <StemSummary series={stemSeries} />
         <GrowthChart series={stemSeries} />
       </section>
 
@@ -260,6 +261,33 @@ function Info({ label, value }) {
     <div className={styles.infoItem}>
       <div className={styles.infoLabel}>{label}</div>
       <div className={styles.infoValue}>{value}</div>
+    </div>
+  )
+}
+
+/* ── 최종 줄기 굵기 요약 ── */
+function StemSummary({ series }) {
+  if (!series.length) return null
+  const first = series[0].v
+  const last = series[series.length - 1].v
+  const diff = last - first
+  const hasGrowth = series.length > 1
+  return (
+    <div className={styles.stemSummary}>
+      <div className={styles.stemNow}>
+        <div className={styles.stemNowLabel}>현재 줄기 굵기</div>
+        <div className={styles.stemNowValue}>{last.toFixed(1)}<span className={styles.stemNowUnit}>mm</span></div>
+        <div className={styles.stemNowDate}>{series[series.length - 1].t} 기준</div>
+      </div>
+      {hasGrowth && (
+        <div className={styles.stemGrow}>
+          <div className={styles.stemGrowLabel}>처음 대비 성장</div>
+          <div className={`${styles.stemGrowValue} ${diff >= 0 ? styles.up : styles.down}`}>
+            {diff >= 0 ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}mm
+          </div>
+          <div className={styles.stemGrowDate}>{series[0].t} {first.toFixed(1)}mm 부터</div>
+        </div>
+      )}
     </div>
   )
 }
@@ -384,6 +412,9 @@ function WeatherSummary({ days }) {
   )
 }
 
+/* 메모로 취급하지 않을 측정종류 단어 (실제 작업/음성 메모만 남김) */
+const MEMO_SKIP = ['줄기직경', '줄기측정', '토양측정', '캘리퍼스', '수고', '관찰', '작업일지', '']
+
 /* 같은 날짜 기록을 묶어 평균으로 합치는 헬퍼 */
 function groupByDay(records) {
   const map = new Map()
@@ -407,7 +438,7 @@ function groupByDay(records) {
     push(g.stemp, r.soil_temp)
     push(g.atemp, r.air_temp)
     push(g.hum, r.humidity)
-    if (r.memo) g.memos.push(r.memo)
+    if (r.memo && !MEMO_SKIP.includes(String(r.memo).trim())) g.memos.push(r.memo)
   }
   return [...map.values()]
     .sort((a, b) => a.sortAt - b.sortAt)
