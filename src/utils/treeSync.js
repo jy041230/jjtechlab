@@ -71,8 +71,8 @@ export async function syncTreesToSupabase() {
       soil_moisture: toNum(r.토양수분),
       soil_temp: toNum(r.토양온도),
       photo: firstImage(r.이미지자료),
-      memo: r.음성전사 || r.비고 || null,
-      record_type: r.사건유형 || null,
+      memo: r.음성전사 || (r.사건유형 && r.사건유형 !== '관찰' ? r.비고 : null) || null,
+      record_type: r.비고 || r.사건유형 || null,
     }))
 
   await postRows('trees', trees, 'tree_id')
