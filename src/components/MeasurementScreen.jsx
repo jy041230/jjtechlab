@@ -44,7 +44,7 @@ const MEASUREMENT_TYPES = [
   { id: '가지직경', label: '가지직경', unit: 'mm', icon: '🌿', usesCamera: true },
   { id: '근원직경', label: '근원직경', unit: 'mm', icon: '🪵', usesCamera: true },
   { id: '수고',     label: '수고',     unit: 'm',  icon: '🌳', usesCamera: true },
-  { id: '토양측정', label: '토양측정', unit: null, icon: '🌱', usesCamera: false, usesSoilMeasure: true },
+  { id: '토양측정', label: '휴대용 토양측정', unit: null, icon: '🌱', usesCamera: false, usesSoilMeasure: true },
 ]
 
 // ── 토양 5개 항목 정의 ─────────────────────────────────────────────────────────
@@ -1146,7 +1146,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.soilBackBtn} onClick={handleSoilBack}>
               &larr; 뒤로
             </button>
-            <span className={styles.soilHeaderTitle}>토양측정</span>
+            <span className={styles.soilHeaderTitle}>휴대용 토양측정</span>
             <div style={{ width: 72, flexShrink: 0 }} />
           </header>
         ) : isCameraMethodScreen ? (
@@ -1183,7 +1183,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
                 ⇄ 모드
               </button>
             )}
-            <MarkerStatus found={markerCorners !== null && phase !== PHASE.NO_MARKER} />
+            {phase !== PHASE.SOIL_LIVE && phase !== PHASE.JOURNAL_LIVE && (
+              <MarkerStatus found={markerCorners !== null && phase !== PHASE.NO_MARKER} />
+            )}
           </header>
         )
       )}
@@ -1241,7 +1243,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
         {phase === PHASE.SOIL_METHOD && (
           <div className={styles.soilMethodBox}>
             <ResearchTargetBadge meta={getResearchMeta()} />
-            <p className={styles.soilMethodTitle}>토양 측정 방식 선택</p>
+            <p className={styles.soilMethodTitle}>휴대용 토양측정 방식 선택</p>
             <div className={styles.soilMethodGrid}>
               <button className={styles.soilMethodBtn} onClick={() => handleSoilMethodSelect('촬영')}>
                 <span className={styles.soilMethodIcon}>📷</span>
@@ -1251,12 +1253,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
               <button className={styles.soilMethodBtn} onClick={() => handleSoilMethodSelect('사진불러오기')}>
                 <span className={styles.soilMethodIcon}>🖼️</span>
                 <span className={styles.soilMethodLabel}>사진 불러오기</span>
-                <span className={styles.soilMethodSub}>이미 찍어 둔 측정기 사진 사용</span>
-              </button>
-              <button className={styles.soilMethodBtn} onClick={() => handleSoilMethodSelect('직접입력')}>
-                <span className={styles.soilMethodIcon}>⌨️</span>
-                <span className={styles.soilMethodLabel}>직접 입력</span>
-                <span className={styles.soilMethodSub}>사진 없이 값만 입력</span>
+                <span className={styles.soilMethodSub}>찍어 둔 사진 사용 또는 값만 입력</span>
               </button>
             </div>
           </div>
