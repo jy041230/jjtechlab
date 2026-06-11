@@ -166,7 +166,7 @@ function isNearMarker(ix, iy, markerCorners, margin = 30) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
-export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onGoSensor, onGoReport, onRegisterBack }) {
+export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onGoSensor, onGoReport, onExitMode, onRegisterBack }) {
   const [phase, setPhase]               = useState(PHASE.IDLE)
   const [selectedType, setSelectedType] = useState(MEASUREMENT_TYPES[0])
 
@@ -684,7 +684,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
     if (!window.confirm('이 휴대폰의 측정 이력을 고객 열람용 서버로 올릴까요?')) return
     try {
       const res = await syncTreesToSupabase()
-      alert(`업로드 완료\n수목 ${res.trees}그루 · 기록 ${res.records}건`)
+      alert(`업로드 완료\n수목 ${res.trees}그루 · 기록 ${res.records}건` + (res.weather ? '\n기상 정보도 저장했습니다.' : ''))
     } catch (err) {
       console.error('[수목 동기화 실패]', err)
       alert('업로드에 실패했습니다.\n' + (err?.message || '인터넷 연결을 확인해 주세요.'))
@@ -1153,9 +1153,21 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
         ) : (
           <header className={styles.header}>
             <div className={styles.headerTitle}>
-              <span className={styles.appName}>홍매화 측정</span>
-              <span className={styles.milestone}>M2·M4·M5 — 계측·음성·OCR·저장</span>
+              <span className={styles.appName}>조경수 생산이력관리</span>
+              <span className={styles.milestone}>연구자용 — 측정·기록·분석</span>
             </div>
+            {onExitMode && (
+              <button
+                onClick={onExitMode}
+                style={{
+                  flexShrink: 0, minHeight: 36, padding: '0 12px', marginRight: 8,
+                  borderRadius: 9, border: 'none', background: 'rgba(255,255,255,0.2)',
+                  color: '#fff', fontSize: 13, fontWeight: 800,
+                }}
+              >
+                ⇄ 모드
+              </button>
+            )}
             <MarkerStatus found={markerCorners !== null && phase !== PHASE.NO_MARKER} />
           </header>
         )

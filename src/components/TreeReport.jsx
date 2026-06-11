@@ -18,7 +18,7 @@
  * 의존성 추가 없음. PDF는 브라우저 인쇄(window.print) 사용.
  */
 import { useState, useEffect, useCallback } from 'react'
-import { fetchTrees, fetchTreeRecords } from '../utils/treeSync'
+import { fetchTrees, fetchTreeRecords, fetchFarmWeather } from '../utils/treeSync'
 import { isSupabaseConfigured } from '../utils/supabaseClient'
 import styles from './TreeReport.module.css'
 
@@ -26,6 +26,7 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
   const [trees, setTrees] = useState([])
   const [selected, setSelected] = useState(initialTreeId)
   const [records, setRecords] = useState([])
+  const [farmWx, setFarmWx] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [groupFilter, setGroupFilter] = useState('전체')
@@ -63,6 +64,12 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
       setRecords(recs)
     } catch (e) {
       setError('수목 기록을 불러오지 못했습니다.')
+    }
+    try {
+      const wx = await fetchFarmWeather()
+      setFarmWx(wx)
+    } catch (e) {
+      setFarmWx([])
     }
   }, [])
 
@@ -123,7 +130,12 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
           </div>
         </div>
         <div className={styles.report} id="report-area">
-          <ReportBody tree={tree} records={inRange} />
+          <ReportBody tree={tree} records={inRange} farmWx={farmWx.filter(w => {
+            const d = (w.observed_at || '').slice(0, 10)
+            if (fromDate && d < fromDate) return false
+            if (toDate && d > toDate) return false
+            return true
+          })} />
         </div>
         <div className={`${styles.printBar} ${styles.noPrint}`}>
           <button className={styles.printBtn} onClick={() => window.print()}>
@@ -197,7 +209,7 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
 }
 
 /* ── 리포트 본문 (인쇄 영역) ── */
-function ReportBody({ tree, records }) {
+function ReportBody({ tree, records, farmWx = [] }) {
   // 같은 날짜끼리 묶어 평균으로 합치기 (줄이 여러 개로 흩어지지 않게)
   const daily = groupByDay(records)
 
@@ -238,7 +250,7 @@ function ReportBody({ tree, records }) {
 
       <section className={styles.block}>
         <h2 className={styles.blockTitle}>기상 정보</h2>
-        <WeatherSummary days={daily} />
+        <WeatherSummary days={daily} farmWx={farmWx} />
       </section>
 
       <section className={styles.block}>
@@ -382,12 +394,20 @@ function Timeline({ days }) {
   )
 }
 
-/* ── 기상 요약 ── */
-function WeatherSummary({ days }) {
-  const temps = days.map(d => d.air_temp).filter(v => v != null)
-  const hums = days.map(d => d.humidity).filter(v => v != null)
+/* ── 기상 요약 (측정 기록 + 농장 기상청 데이터) ── */
+function WeatherSummary({ days, farmWx = [] }) {
+  const temps = [
+    ...days.map(d => d.air_temp).filter(v => v != null),
+    ...farmWx.map(w => w.air_temp).filter(v => v != null),
+  ]
+  const hums = [
+    ...days.map(d => d.humidity).filter(v => v != null),
+    ...farmWx.map(w => w.humidity).filter(v => v != null),
+  ]
+  const rains = farmWx.map(w => w.rainfall).filter(v => v != null)
+
   if (!temps.length && !hums.length) {
-    return <div className={styles.empty}>기록된 기상 정보가 없습니다. (측정 시 기온·습도가 함께 저장됩니다)</div>
+    return <div className={styles.empty}>기록된 기상 정보가 없습니다. (이력 올리기 시 기상청 데이터가 함께 저장됩니다)</div>
   }
   const mean = arr => arr.reduce((s, x) => s + x, 0) / arr.length
   return (
@@ -406,6 +426,14 @@ function WeatherSummary({ days }) {
           <div className={styles.weatherLabel}>평균 습도</div>
           <div className={styles.weatherValue}>{mean(hums).toFixed(0)}%</div>
           <div className={styles.weatherRange}>{Math.min(...hums).toFixed(0)} ~ {Math.max(...hums).toFixed(0)}%</div>
+        </div>
+      )}
+      {rains.length > 0 && (
+        <div className={styles.weatherItem}>
+          <div className={styles.weatherIcon}>🌧️</div>
+          <div className={styles.weatherLabel}>누적 강수</div>
+          <div className={styles.weatherValue}>{rains.reduce((s, x) => s + x, 0).toFixed(1)}mm</div>
+          <div className={styles.weatherRange}>{farmWx.length}회 관측</div>
         </div>
       )}
     </div>
