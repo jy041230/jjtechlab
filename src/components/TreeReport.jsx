@@ -28,7 +28,6 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [query, setQuery] = useState('')
   const [groupFilter, setGroupFilter] = useState('전체')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -137,11 +136,9 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
 
   // ── 갤러리 화면 ──
   const groups = ['전체', ...Array.from(new Set(trees.map(t => t.tree_group).filter(Boolean)))]
-  const filtered = trees.filter(t => {
-    const okGroup = groupFilter === '전체' || t.tree_group === groupFilter
-    const okQuery = !query.trim() || (t.tree_id || '').toLowerCase().includes(query.trim().toLowerCase())
-    return okGroup && okQuery
-  })
+  const filtered = trees
+    .filter(t => groupFilter === '전체' || t.tree_group === groupFilter)
+    .sort((a, b) => (a.tree_id || '').localeCompare(b.tree_id || ''))
 
   return (
     <div className={styles.screen}>
@@ -149,30 +146,35 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
       <div className={styles.body}>
         {error && <div className={styles.errorBox}>{error}</div>}
 
-        <div className={styles.searchRow}>
-          <input
-            className={styles.searchInput}
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="🔍 수목 번호 검색 (예: 케이싱1년-01)"
-          />
+        <div className={styles.pickerCard}>
+          {groups.length > 1 && (
+            <div className={styles.pickRow}>
+              <label className={styles.pickLabel}>수목 구분</label>
+              <select
+                className={styles.pickSelect}
+                value={groupFilter}
+                onChange={e => setGroupFilter(e.target.value)}
+              >
+                {groups.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          )}
+          <div className={styles.pickRow}>
+            <label className={styles.pickLabel}>수목 번호</label>
+            <select
+              className={styles.pickSelect}
+              value=""
+              onChange={e => { if (e.target.value) setSelected(e.target.value) }}
+            >
+              <option value="">— 수목을 선택하세요 —</option>
+              {filtered.map(t => (
+                <option key={t.tree_id} value={t.tree_id}>{t.tree_id}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {groups.length > 1 && (
-          <div className={styles.filterRow}>
-            {groups.map(g => (
-              <button
-                key={g}
-                className={`${styles.filterBtn} ${groupFilter === g ? styles.filterBtnActive : ''}`}
-                onClick={() => setGroupFilter(g)}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <p className={styles.galleryHint}>수목을 눌러 성장 이력을 확인하세요. ({filtered.length}그루)</p>
+        <p className={styles.galleryHint}>또는 아래 사진을 눌러 선택하세요. ({filtered.length}그루)</p>
         <div className={styles.gallery}>
           {filtered.map(t => (
             <button key={t.tree_id} className={styles.treeCard} onClick={() => setSelected(t.tree_id)}>
@@ -186,7 +188,7 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
             </button>
           ))}
           {!filtered.length && !error && (
-            <div className={styles.empty}>조건에 맞는 수목이 없습니다.</div>
+            <div className={styles.empty}>해당 구분에 수목이 없습니다.</div>
           )}
         </div>
       </div>
