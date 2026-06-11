@@ -35,6 +35,7 @@ import FrozenMeasure  from './FrozenMeasure'
 import SoilInputPanel from './SoilInputPanel'
 import { fetchLatestSensor, formatTime, formatAge, isStale } from '../utils/sensorApi'
 import { syncTreesToSupabase } from '../utils/treeSync'
+import QrScanner from './QrScanner'
 import VoiceScreen    from './VoiceScreen'
 import styles from './MeasurementScreen.module.css'
 
@@ -191,6 +192,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   const [caliperStatusMap, setCaliperStatusMap] = useState({})
   const [researchDb, setResearchDb] = useState(null)
   const [researchMeta, setResearchMeta] = useState(loadResearchMeta)
+  const [showQrScan, setShowQrScan] = useState(false)
   const [caliperMm, setCaliperMm] = useState('')
   const [cvState, setCvState] = useState('loading')
   const [cvError, setCvError] = useState('')
@@ -673,6 +675,22 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
     })
   }
 
+  // ── QR 스캔으로 수목 자동 선택 ──
+  function handleQrResult(treeId) {
+    setShowQrScan(false)
+    if (!treeId) return
+    const group = normalizeTreeGroup(treeId)
+    const options = getTreeIdOptions(group)
+    // QR이 정확히 목록에 있으면 그대로, 아니면 구분만 맞추고 첫 번째
+    const matched = options.find(o => o.replace(/\s+/g, '') === String(treeId).replace(/\s+/g, ''))
+    setResearchMeta(prev => ({
+      ...prev,
+      treeGroup: group,
+      treeId: matched || options[0],
+    }))
+    alert(`수목 선택됨: ${matched || treeId}`)
+  }
+
   // ── 수목 이력을 Supabase로 올리기 (고객 리포트 동기화) ──
   async function handleTreeSync() {
     if (!window.confirm('이 휴대폰의 측정 이력을 고객 열람용 서버로 올릴까요?')) return
@@ -1094,6 +1112,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
 
   return (
     <div className={`${styles.screen} ${isMenuScreen ? styles.screenScroll : ''}`}>
+      {showQrScan && (
+        <QrScanner onResult={handleQrResult} onCancel={() => setShowQrScan(false)} />
+      )}
 
       {!isCameraMode && (
         isResearchDbScreen ? (
@@ -1222,11 +1243,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <ResearchTargetBadge meta={getResearchMeta()} />
             <p className={styles.soilMethodTitle}>토양 측정 방식 선택</p>
             <div className={styles.soilMethodGrid}>
-              <button className={styles.soilMethodBtn} onClick={() => handleSoilMethodSelect('센서파일')}>
-                <span className={styles.soilMethodIcon}>📄</span>
-                <span className={styles.soilMethodLabel}>센서 CSV 불러오기</span>
-                <span className={styles.soilMethodSub}>현재 선택한 수목에 센서값 저장</span>
-              </button>
               <button className={styles.soilMethodBtn} onClick={() => handleSoilMethodSelect('촬영')}>
                 <span className={styles.soilMethodIcon}>📷</span>
                 <span className={styles.soilMethodLabel}>촬영</span>
@@ -1237,8 +1253,12 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
                 <span className={styles.soilMethodLabel}>사진 불러오기</span>
                 <span className={styles.soilMethodSub}>이미 찍어 둔 측정기 사진 사용</span>
               </button>
+              <button className={styles.soilMethodBtn} onClick={() => handleSoilMethodSelect('직접입력')}>
+                <span className={styles.soilMethodIcon}>⌨️</span>
+                <span className={styles.soilMethodLabel}>직접 입력</span>
+                <span className={styles.soilMethodSub}>사진 없이 값만 입력</span>
+              </button>
             </div>
-            {excelError && <p className={styles.soilMethodError}>⚠️ {excelError}</p>}
           </div>
         )}
 
@@ -1580,6 +1600,17 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
                 <input value={researchMeta.sessionLabel} onChange={e => updateResearchMeta('sessionLabel', e.target.value)} placeholder="1회차" />
               </label>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowQrScan(true)}
+              style={{
+                marginTop: 8, width: '100%', minHeight: 46, borderRadius: 12,
+                border: '1.5px solid #2d6a4f', background: '#eaf4ee', color: '#1b4332',
+                fontSize: 16, fontWeight: 900,
+              }}
+            >
+              📷 QR 스캔으로 수목 선택
+            </button>
           </section>
           <section className={styles.typeSelector}>
             {MEASUREMENT_TYPES.map(t => (
