@@ -1162,7 +1162,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.soilBackBtn} onClick={() => setPhase(PHASE.IDLE)}>
               &larr; 뒤로
             </button>
-            <span className={styles.soilHeaderTitle}>측정 리스트</span>
+            <span className={styles.soilHeaderTitle}>일일입력리스트</span>
             <div style={{ width: 72, flexShrink: 0 }} />
           </header>
         ) : (
@@ -1620,12 +1620,32 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
               <span className={styles.typeLabel}>작업일지</span>
             </button>
             <button className={styles.typeBtn} onClick={handleOpenList}>
+              <span className={styles.typeIcon}>📋</span>
+              <span className={styles.typeLabel}>일일입력리스트</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoSensor}>
+              <span className={styles.typeIcon}>📡</span>
+              <span className={styles.typeLabel}>토양센서</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoResearch}>
+              <span className={styles.typeIcon}>✅</span>
+              <span className={styles.typeLabel}>측정체크리스트</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoAnalysis}>
               <span className={styles.typeIcon}>📊</span>
-              <span className={styles.typeLabel}>리스트</span>
+              <span className={styles.typeLabel}>수목별 통계분석</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoReport}>
+              <span className={styles.typeIcon}>🌳</span>
+              <span className={styles.typeLabel}>고객 리포트</span>
+            </button>
+            <button className={styles.typeBtn} onClick={handleTreeSync}>
+              <span className={styles.typeIcon}>☁️</span>
+              <span className={styles.typeLabel}>이력 올리기</span>
             </button>
             <button className={styles.typeBtn} onClick={onGoHistory}>
-              <span className={styles.typeIcon}>📋</span>
-              <span className={styles.typeLabel}>이력</span>
+              <span className={styles.typeIcon}>🗂️</span>
+              <span className={styles.typeLabel}>전체이력</span>
             </button>
             <button className={styles.typeBtn} onClick={handlePhoneBackupDownload}>
               <span className={styles.typeIcon}>💾</span>
@@ -1638,26 +1658,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.typeBtn} onClick={handleCompleteClearPhoneData}>
               <span className={styles.typeIcon}>🗑️</span>
               <span className={styles.typeLabel}>완전삭제</span>
-            </button>
-            <button className={styles.typeBtn} onClick={onGoSensor}>
-              <span className={styles.typeIcon}>📡</span>
-              <span className={styles.typeLabel}>토양센서</span>
-            </button>
-            <button className={styles.typeBtn} onClick={onGoReport}>
-              <span className={styles.typeIcon}>🌳</span>
-              <span className={styles.typeLabel}>고객 리포트</span>
-            </button>
-            <button className={styles.typeBtn} onClick={handleTreeSync}>
-              <span className={styles.typeIcon}>☁️</span>
-              <span className={styles.typeLabel}>이력 올리기</span>
-            </button>
-            <button className={styles.typeBtn} onClick={onGoResearch}>
-              <span className={styles.typeIcon}>📈</span>
-              <span className={styles.typeLabel}>측정현황</span>
-            </button>
-            <button className={styles.typeBtn} onClick={onGoAnalysis}>
-              <span className={styles.typeIcon}>📊</span>
-              <span className={styles.typeLabel}>분석</span>
             </button>
           </section>
         </>

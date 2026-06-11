@@ -101,7 +101,7 @@ export default function AnalysisScreen({ onBack }) {
     <div style={styles.screen}>
       <header style={styles.header}>
         <button onClick={onBack} style={styles.backBtn}>← 뒤로</button>
-        <span style={styles.title}>데이터 분석</span>
+        <span style={styles.title}>수목별 통계분석</span>
         <div style={{ width: 60 }} />
       </header>
 

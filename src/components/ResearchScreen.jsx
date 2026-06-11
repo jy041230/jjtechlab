@@ -239,7 +239,7 @@ export default function ResearchScreen({ onBack }) {
       <header className={styles.header}>
         <button className={styles.backBtn} onClick={onBack}>&larr; 뒤로</button>
         <div>
-          <h1>측정현황</h1>
+          <h1>측정체크리스트</h1>
           <p>구글시트 기준</p>
         </div>
         <button className={styles.refreshBtn} onClick={loadRows}>새로고침</button>
