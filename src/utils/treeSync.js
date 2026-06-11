@@ -9,6 +9,7 @@
 import { SUPABASE_URL, SB_HEADERS, isSupabaseConfigured } from './supabaseClient'
 import { getResearchDatabaseRows } from './db'
 import { fetchSheetData } from './sheetData'
+import { fetchCurrentWeather, isWeatherConfigured } from './weatherApi'
 
 const REST = `${SUPABASE_URL}/rest/v1`
 
@@ -93,7 +94,27 @@ export async function syncTreesToSupabase() {
   await postRows('trees', trees, 'tree_id')
   await postRows('tree_records', records)
 
-  return { trees: trees.length, records: records.length }
+  // 현재 기상을 농장 기상 기록에 추가 (키가 있을 때만, 실패해도 무시)
+  let weather = 0
+  if (isWeatherConfigured()) {
+    try {
+      const w = await fetchCurrentWeather()
+      await postRows('farm_weather', [{
+        observed_at: w.observedAt,
+        air_temp: w.temperature,
+        humidity: w.humidity,
+        rainfall: w.rainfall,
+        wind_speed: w.windSpeed,
+        weather: w.weather,
+        source: '기상청',
+      }])
+      weather = 1
+    } catch (e) {
+      console.warn('[기상 저장 실패 — 무시]', e)
+    }
+  }
+
+  return { trees: trees.length, records: records.length, weather }
 }
 
 /** 구글시트 stem/soil 시트를 연구DB 행 형식으로 변환 */
@@ -142,6 +163,16 @@ export async function fetchTreeRecords(treeId) {
     `&select=*&order=measured_at.asc`
   const res = await fetch(url, { headers: SB_HEADERS })
   if (!res.ok) throw new Error(`수목 기록 조회 실패 (${res.status})`)
+  return res.json()
+}
+
+/** ── 읽기: 농장 기상 기록 (기간 옵션) ── */
+export async function fetchFarmWeather(fromDate, toDate) {
+  let url = `${REST}/farm_weather?select=*&order=observed_at.asc`
+  if (fromDate) url += `&observed_at=gte.${fromDate}`
+  if (toDate) url += `&observed_at=lte.${toDate}T23:59:59`
+  const res = await fetch(url, { headers: SB_HEADERS })
+  if (!res.ok) throw new Error(`기상 기록 조회 실패 (${res.status})`)
   return res.json()
 }
 
