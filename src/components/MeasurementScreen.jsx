@@ -1313,15 +1313,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
               onClose={handleCloseSoilCapture}
               onRetry={startCamera}
               errorMsg={cameraError}
-              hint={null}
+              noMarker={true}
+              hint={'측정기 액정이 잘 보이게 촬영하세요'}
             />
-            <div className={styles.soilGuideOverlay}>
-              <div className={styles.soilGuideBox}>
-                <span className={styles.soilGuideText}>
-                  {'측정기 액정 전체를\n이 안에 맞추세요'}
-                </span>
-              </div>
-            </div>
           </>
         )}
 
@@ -1360,6 +1354,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             onClose={handleJournalClose}
             onRetry={startCamera}
             errorMsg={cameraError}
+            noMarker={true}
             hint="작업 부위나 수목 상태가 보이도록 촬영하세요"
           />
         )}

@@ -115,6 +115,7 @@ export default function LiveCamera({
   onClose,
   onRetry,
   onLiveMarker,          // (found: bool) => void  (optional)
+  noMarker = false,      // true면 마커 감지 없이 일반 촬영 (토양·작업일지)
   errorMsg = '',
   hint = '마커가 보이도록 놓고 촬영하세요',
 }) {
@@ -213,13 +214,13 @@ export default function LiveCamera({
 
   // 스트림 연결/해제 시 루프 시작/정지
   useEffect(() => {
-    if (stream) {
+    if (stream && !noMarker) {
       rafRef.current = requestAnimationFrame(loop)
     } else {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  }, [stream, loop])
+  }, [stream, loop, noMarker])
 
   // ── 기존 함수들 ──────────────────────────────────────────────────────────
 
@@ -262,7 +263,8 @@ export default function LiveCamera({
   }
 
   // 셔터 버튼: 마커 감지 전에는 비활성 스타일, 감지 후 활성 스타일
-  const shutterReady = stream && videoState.ready && markerFound
+  // noMarker 모드(토양·작업일지)에서는 항상 활성
+  const shutterReady = stream && videoState.ready && (noMarker || markerFound)
 
   return (
     <div className={styles.container}>
@@ -319,27 +321,32 @@ export default function LiveCamera({
         </button>
       )}
 
-      {/* 안내 힌트 — 마커 감지 여부에 따라 내용 변경 */}
-      {stream && videoState.ready && (
+      {/* 안내 힌트 — 마커 감지 여부에 따라 내용 변경 (noMarker면 hint 그대로) */}
+      {stream && videoState.ready && !noMarker && (
         <div className={`${styles.hint} ${markerFound ? styles.hintReady : ''}`}>
           {markerFound ? '마커 감지됨 — 탭하여 촬영' : '마커를 화면에 맞춰주세요'}
         </div>
+      )}
+      {stream && videoState.ready && noMarker && hint && (
+        <div className={`${styles.hint} ${styles.hintReady}`}>{hint}</div>
       )}
       {(!stream || !videoState.ready) && hint && (
         <div className={styles.hint}>{hint}</div>
       )}
 
-      <div className={styles.debugBadge}>
-        stream {stream ? 'ON' : 'OFF'} · video {videoState.width}×{videoState.height}
-        {stream && ` · 마커 ${markerFound ? '✓' : '✗'}`}
-      </div>
+      {!noMarker && (
+        <div className={styles.debugBadge}>
+          stream {stream ? 'ON' : 'OFF'} · video {videoState.width}×{videoState.height}
+          {stream && ` · 마커 ${markerFound ? '✓' : '✗'}`}
+        </div>
+      )}
 
-      {/* 셔터 버튼 — 마커 감지 시 활성화 */}
+      {/* 셔터 버튼 — 마커 감지 시 활성화 (noMarker면 항상) */}
       <button
         className={`${styles.shutter} ${shutterReady ? styles.shutterReady : styles.shutterWaiting}`}
         onClick={stream ? handleShutter : () => fileRef.current?.click()}
         aria-label="사진 촬영"
-        disabled={stream && videoState.ready && !markerFound}
+        disabled={stream && videoState.ready && !noMarker && !markerFound}
       >
         <span className={styles.shutterInner} />
       </button>
