@@ -193,6 +193,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   const [researchDb, setResearchDb] = useState(null)
   const [researchMeta, setResearchMeta] = useState(loadResearchMeta)
   const [showQrScan, setShowQrScan] = useState(false)
+  const [syncState, setSyncState] = useState(null) // {kind:'syncing'|'done'|'pending'|'offline'}
   const [caliperMm, setCaliperMm] = useState('')
   const [cvState, setCvState] = useState('loading')
   const [cvError, setCvError] = useState('')
@@ -691,6 +692,29 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
     alert(`수목 선택됨: ${matched || treeId}`)
   }
 
+  // ── 저장 직후 자동 업로드 (온라인일 때만, 실패해도 측정엔 영향 없음) ──
+  const autoSyncTimerRef = useRef(null)
+  function autoSyncAfterSave() {
+    // 오프라인이면 시도 안 함 (폰에는 이미 저장됨)
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setSyncState({ kind: 'offline' })
+      return
+    }
+    // 연속 저장 시 과도한 호출 방지: 마지막 저장 1.5초 뒤 한 번만 올림
+    if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current)
+    setSyncState({ kind: 'syncing' })
+    autoSyncTimerRef.current = setTimeout(async () => {
+      try {
+        await syncTreesToSupabase()
+        setSyncState({ kind: 'done', at: Date.now() })
+      } catch (err) {
+        // 실패해도 폰에는 저장돼 있으니 조용히 표시만
+        console.warn('[자동 업로드 실패 — 폰에는 저장됨]', err)
+        setSyncState({ kind: 'pending' })
+      }
+    }, 1500)
+  }
+
   // ── 수목 이력을 Supabase로 올리기 (고객 리포트 동기화) ──
   async function handleTreeSync() {
     if (!window.confirm('이 휴대폰의 측정 이력을 고객 열람용 서버로 올릴까요?')) return
@@ -1029,17 +1053,21 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   async function autoSubmitSavedEvents(eventIds) {
     const ids = Array.isArray(eventIds) ? eventIds.filter(Boolean) : [eventIds].filter(Boolean)
     if (!ids.length) return
+    // 1) PC 자동 백업 (기존)
     try {
       const data = await makeResearchDatabaseCsv({ includeImages: false, eventIds: ids })
-      if (!data.rows.length) return
-      await fetch('/api/research-db-export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csv: data.csv }),
-      })
+      if (data.rows.length) {
+        await fetch('/api/research-db-export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ csv: data.csv }),
+        })
+      }
     } catch (err) {
       console.warn('[PC 자동 백업 실패]', err)
     }
+    // 2) 서버(Supabase) 자동 업로드 — 온라인일 때만, 실패해도 무시
+    autoSyncAfterSave()
   }
 
   async function handleVoiceSave(rawValue) {
@@ -1171,6 +1199,21 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
               <span className={styles.appName}>조경수 생산이력관리</span>
               <span className={styles.milestone}>연구자용 — 측정·기록·분석</span>
             </div>
+            {syncState && (
+              <span style={{
+                flexShrink: 0, marginRight: 8, fontSize: 11, fontWeight: 800,
+                padding: '3px 8px', borderRadius: 8,
+                background: syncState.kind === 'done' ? 'rgba(255,255,255,0.25)'
+                  : syncState.kind === 'syncing' ? 'rgba(255,255,255,0.18)'
+                  : 'rgba(255,200,80,0.3)',
+                color: '#fff',
+              }}>
+                {syncState.kind === 'syncing' && '⟳ 올리는 중'}
+                {syncState.kind === 'done' && '☁ 저장됨'}
+                {syncState.kind === 'pending' && '⚠ 대기'}
+                {syncState.kind === 'offline' && '⚠ 오프라인'}
+              </span>
+            )}
             {onExitMode && (
               <button
                 onClick={onExitMode}
@@ -1587,10 +1630,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
                   {treeIdOptions.map(treeId => <option key={treeId}>{treeId}</option>)}
                 </select>
               </label>
-              <label>
-                실험회차
-                <input value={researchMeta.sessionLabel} onChange={e => updateResearchMeta('sessionLabel', e.target.value)} placeholder="1회차" />
-              </label>
             </div>
             <button
               type="button"
@@ -1615,10 +1654,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
                 <span className={styles.typeLabel}>{t.label}</span>
               </button>
             ))}
-            <button className={styles.typeBtn} onClick={onGoSensor}>
-              <span className={styles.typeIcon}>📡</span>
-              <span className={styles.typeLabel}>토양센서</span>
-            </button>
             <button className={styles.typeBtn} onClick={handleOpenJournal}>
               <span className={styles.typeIcon}>📝</span>
               <span className={styles.typeLabel}>작업일지</span>
@@ -1626,6 +1661,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.typeBtn} onClick={handleOpenList}>
               <span className={styles.typeIcon}>📋</span>
               <span className={styles.typeLabel}>일일입력리스트</span>
+            </button>
+            <button className={styles.typeBtn} onClick={onGoSensor}>
+              <span className={styles.typeIcon}>📡</span>
+              <span className={styles.typeLabel}>토양센서</span>
             </button>
             <button className={styles.typeBtn} onClick={onGoResearch}>
               <span className={styles.typeIcon}>✅</span>
