@@ -1,26 +1,20 @@
 /**
- * detectRedTape.js — 사진에서 빨간 테이프(줄기에 감긴) 영역을 찾아
+ * detectRedTape.js — 사진에서 파란 테이프(줄기에 감긴) 영역을 찾아
  *                     줄기 굵기 양끝(좌·우) 두 점을 제안한다.
  *
  * 반환: [{x,y},{x,y}] (원본 이미지 좌표) 또는 null (못 찾음)
  *
- * 원리:
- *  1) 이미지를 적당한 크기로 축소해 빨강 픽셀 마스크 생성 (HSV 기준)
- *  2) 빨강 픽셀이 가장 많이 모인 가로 띠(행 구간)를 찾음
- *  3) 그 띠에서 빨강 영역의 좌·우 가장자리 x를 굵기 양끝으로 제안
- *  4) 양끝의 중간 높이 y를 점의 y로
- *
- * 검증된 측정 로직(FrozenMeasure)은 건드리지 않는다. 이 함수는
- * "두 점을 제안"만 하고, 사용자가 드래그로 확인·조정한다.
+ * 핵심: 화면 전체의 파란 픽셀을 긁지 않고, "연결된 가장 큰 파란 덩어리"
+ *       하나만 찾는다. 그 덩어리가 테이프다운 모양일 때만 인정한다.
+ *       UI 배지·배경의 흩어진 파랑은 버린다.
  */
 
-/** 파랑 판정 (RGB → 대략적 HSV 파랑 영역) */
+/** 선명한 파랑만 (채도·밝기 높게 — 배경의 옅은 파랑 제외) */
 function isBlue(r, g, b) {
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
   const v = max / 255
   const s = max === 0 ? 0 : (max - min) / max
-  if (v < 0.15 || s < 0.20) return false        // 너무 어둡거나 채도 낮으면 제외
-  // 색상(Hue) 계산
+  if (v < 0.25 || s < 0.45) return false
   let h = 0
   const d = max - min
   if (d !== 0) {
@@ -30,19 +24,11 @@ function isBlue(r, g, b) {
     h *= 60
     if (h < 0) h += 360
   }
-  // 파랑: 190~260도 (하늘색~남색, 약간의 청록 포함)
-  return h >= 190 && h <= 260
+  return h >= 200 && h <= 250
 }
 
-/**
- * @param {HTMLImageElement|HTMLCanvasElement} imgEl  원본 이미지
- * @param {number} imgW, imgH  원본 픽셀 크기
- * @param {Array} markerCorners  마커 코너(있으면 빨강 탐색 높이대 힌트로 사용) — optional
- * @returns {[{x,y},{x,y}]|null}
- */
 export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
   try {
-    // 1) 축소 캔버스 (최대 폭 480px)
     const scale = Math.min(1, 480 / imgW)
     const w = Math.max(1, Math.round(imgW * scale))
     const h = Math.max(1, Math.round(imgH * scale))
@@ -52,57 +38,93 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     ctx.drawImage(imgEl, 0, 0, w, h)
     const data = ctx.getImageData(0, 0, w, h).data
 
-    // 2) 행별 빨강 픽셀 수 + 각 행의 좌우 끝
-    const rowCount = new Array(h).fill(0)
-    const rowMinX = new Array(h).fill(w)
-    const rowMaxX = new Array(h).fill(-1)
+    const mask = new Uint8Array(w * h)
+    let blueTotal = 0
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const i = (y * w + x) * 4
-        if (isBlue(data[i], data[i+1], data[i+2])) {
-          rowCount[y]++
-          if (x < rowMinX[y]) rowMinX[y] = x
-          if (x > rowMaxX[y]) rowMaxX[y] = x
+        if (isBlue(data[i], data[i+1], data[i+2])) { mask[y * w + x] = 1; blueTotal++ }
+      }
+    }
+    if (blueTotal < 8) return null
+
+    const label = new Int32Array(w * h)
+    let curLabel = 0
+    const comps = []
+    const stack = []
+    for (let p0 = 0; p0 < w * h; p0++) {
+      if (mask[p0] !== 1 || label[p0] !== 0) continue
+      curLabel++
+      let count = 0, minX = w, maxX = -1, minY = h, maxY = -1, sumX = 0, sumY = 0
+      stack.length = 0
+      stack.push(p0); label[p0] = curLabel
+      while (stack.length) {
+        const p = stack.pop()
+        const px = p % w, py = (p / w) | 0
+        count++
+        if (px < minX) minX = px
+        if (px > maxX) maxX = px
+        if (py < minY) minY = py
+        if (py > maxY) maxY = py
+        sumX += px; sumY += py
+        if (px > 0)     { const q = p - 1; if (mask[q] === 1 && label[q] === 0) { label[q] = curLabel; stack.push(q) } }
+        if (px < w - 1) { const q = p + 1; if (mask[q] === 1 && label[q] === 0) { label[q] = curLabel; stack.push(q) } }
+        if (py > 0)     { const q = p - w; if (mask[q] === 1 && label[q] === 0) { label[q] = curLabel; stack.push(q) } }
+        if (py < h - 1) { const q = p + w; if (mask[q] === 1 && label[q] === 0) { label[q] = curLabel; stack.push(q) } }
+      }
+      comps.push({ count, minX, maxX, minY, maxY, sumX, sumY })
+    }
+    if (!comps.length) return null
+
+    let markerCx = null, markerCy = null, markerSide = null
+    if (markerCorners && markerCorners.length === 4) {
+      let mx = 0, my = 0
+      for (const c of markerCorners) { mx += c.x; my += c.y }
+      markerCx = (mx / 4) * scale
+      markerCy = (my / 4) * scale
+      const dx = (markerCorners[0].x - markerCorners[1].x) * scale
+      const dy = (markerCorners[0].y - markerCorners[1].y) * scale
+      markerSide = Math.hypot(dx, dy)
+    }
+
+    const minCount = Math.max(6, Math.round(w * h * 0.0008))
+    let best = null, bestScore = -Infinity
+    for (const c of comps) {
+      if (c.count < minCount) continue
+      const bw = c.maxX - c.minX + 1
+      const bh = c.maxY - c.minY + 1
+      if (bw > w * 0.7) continue
+      if (bw < 3) continue
+      const fill = c.count / (bw * bh)
+      if (fill < 0.25) continue
+      const cx = c.sumX / c.count
+      const cy = c.sumY / c.count
+      let score = c.count * fill
+      if (markerCx !== null) {
+        const dist = Math.hypot(cx - markerCx, cy - markerCy)
+        const near = markerSide ? Math.max(0, 1 - dist / (markerSide * 6)) : 0
+        score *= (1 + near * 2)
+      }
+      if (score > bestScore) { bestScore = score; best = { c, cx, cy } }
+    }
+    if (!best) return null
+
+    const c = best.c
+    const yLo = Math.round(c.minY + (c.maxY - c.minY) * 0.33)
+    const yHi = Math.round(c.minY + (c.maxY - c.minY) * 0.67)
+    let leftX = w, rightX = -1
+    for (let y = yLo; y <= yHi; y++) {
+      for (let x = c.minX; x <= c.maxX; x++) {
+        if (mask[y * w + x] === 1 && label[y * w + x]) {
+          if (x < leftX) leftX = x
+          if (x > rightX) rightX = x
         }
       }
     }
+    if (rightX < leftX) { leftX = c.minX; rightX = c.maxX }
+    const midY = (c.minY + c.maxY) / 2
+    if (rightX - leftX < 4) return null
 
-    // 파랑 픽셀이 너무 적으면 실패 (테이프가 멀어 작게 보여도 잡히게 완화)
-    const totalBlue = rowCount.reduce((a, b) => a + b, 0)
-    if (totalBlue < w * h * 0.0005) return null   // 전체의 0.05% 미만이면 파랑 없음으로 판단
-
-    // 3) 빨강이 가장 많은 행을 중심으로, 연속된 빨강 띠 구간 찾기
-    let peakRow = 0, peakVal = 0
-    for (let y = 0; y < h; y++) {
-      if (rowCount[y] > peakVal) { peakVal = rowCount[y]; peakRow = y }
-    }
-    if (peakVal < Math.max(3, w * 0.015)) return null
-
-    // peak 주변에서 빨강이 peak의 30% 이상인 행들을 띠로 모음
-    const thr = peakVal * 0.3
-    let top = peakRow, bot = peakRow
-    while (top > 0 && rowCount[top - 1] >= thr) top--
-    while (bot < h - 1 && rowCount[bot + 1] >= thr) bot++
-
-    // 4) 띠 구간에서 좌·우 끝의 중앙값적 추정 (행별 끝의 중앙값)
-    const lefts = [], rights = []
-    for (let y = top; y <= bot; y++) {
-      if (rowMaxX[y] >= rowMinX[y]) {
-        lefts.push(rowMinX[y])
-        rights.push(rowMaxX[y])
-      }
-    }
-    if (!lefts.length) return null
-    lefts.sort((a, b) => a - b)
-    rights.sort((a, b) => a - b)
-    const leftX = lefts[Math.floor(lefts.length / 2)]
-    const rightX = rights[Math.floor(rights.length / 2)]
-    const midY = (top + bot) / 2
-
-    // 폭이 비정상(너무 좁음)이면 실패
-    if (rightX - leftX < Math.max(4, w * 0.015)) return null
-
-    // 5) 원본 좌표로 환산
     const toImg = (vx, vy) => ({ x: vx / scale, y: vy / scale })
     return [toImg(leftX, midY), toImg(rightX, midY)]
   } catch (e) {
