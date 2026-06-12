@@ -168,7 +168,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   const selectedTypeRef = useRef(selectedType)
   useEffect(() => { selectedTypeRef.current = selectedType }, [selectedType])
   const [redTapeFound, setRedTapeFound] = useState(null) // null=해당없음, true/false
-  const [markerSkewed, setMarkerSkewed] = useState(false) // 마커가 기울어졌는지
   const redTapeTimerRef = useRef(null)
 
   const [frozenSrc,     setFrozenSrc]     = useState(null)
@@ -380,23 +379,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
       setDebugInfo(null)
       setMarkerCorners(detected.corners)
       rememberPixelPerMm(detected.pixelPerMm)
-      // 마커 기울기 검사: 4변 길이가 서로 많이 다르면(원근 왜곡) 측정 부정확
-      try {
-        const cs = detected.corners
-        if (cs && cs.length === 4) {
-          const sides = []
-          for (let i = 0; i < 4; i++) {
-            const a = cs[i], b = cs[(i + 1) % 4]
-            sides.push(Math.hypot(b.x - a.x, b.y - a.y))
-          }
-          const mx = Math.max(...sides), mn = Math.min(...sides)
-          // 가장 긴 변이 가장 짧은 변보다 25% 이상 길면 기울어진 것으로 판단
-          const skew = mn > 0 ? (mx - mn) / mn : 0
-          setMarkerSkewed(skew > 0.25)
-        } else {
-          setMarkerSkewed(false)
-        }
-      } catch { setMarkerSkewed(false) }
       setMarkerInfo({
         frameW:        detected.debug.frameW,
         frameH:        detected.debug.frameH,
@@ -1317,20 +1299,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
           </div>
         )}
 
-        {phase === PHASE.PLACING_POINTS && !result && markerSkewed && (
-          <div style={{
-            position: 'absolute', top: 48, left: 0, right: 0, zIndex: 21,
-            textAlign: 'center', pointerEvents: 'none',
-          }}>
-            <span style={{
-              display: 'inline-block', padding: '6px 14px', borderRadius: 12,
-              background: 'rgba(200,60,40,0.93)', color: '#fff',
-              fontSize: 13, fontWeight: 800,
-            }}>
-              ⚠ 마커가 기울었습니다 — 정면으로 다시 촬영하면 더 정확합니다
-            </span>
-          </div>
-        )}
         {/* 파란 테이프 자동 감지 결과 — 2.5초만 짧게 표시 (화면 가림 최소화) */}
         {phase === PHASE.PLACING_POINTS && !result && redTapeFound === true && (
           <div style={{
