@@ -527,7 +527,23 @@ export default function FrozenMeasure({
     autoZoomKeyRef.current = ''
     setView({ zoom: 1, panX: 0, panY: 0 })
     const img = new Image()
-    img.onload = () => { imgRef.current = img; setImgReady(true) }
+    img.onload = () => {
+      imgRef.current = img
+      setImgReady(true)
+      // 자동 제안된 점이 있으면 다음 프레임에 한 번 더 그려 확실히 표시
+      requestAnimationFrame(() => {
+        const canvas = canvasRef.current
+        const container = containerRef.current
+        if (!canvas || !container || !imgRef.current) return
+        const cw = container.clientWidth, ch = container.clientHeight
+        if (!cw || !ch) return
+        canvas.width = cw; canvas.height = ch
+        const safeView = clampView(viewRef.current, frozenW, frozenH, cw, ch)
+        layoutRef.current = computeLayout(frozenW, frozenH, cw, ch, safeView)
+        redraw(canvas, imgRef.current, layoutRef.current, markerCorners,
+               localPtsRef.current, pixelPerMm, tapPhaseRef.current, null, null)
+      })
+    }
     img.src = frozenSrc
   }, [frozenSrc])
 
