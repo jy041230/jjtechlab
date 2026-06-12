@@ -485,6 +485,7 @@ export default function FrozenMeasure({
   tapPhase,
   onPointsChange,
   debugInfo,
+  hasResult = false,
 }) {
   const containerRef = useRef(null)
   const canvasRef    = useRef(null)
@@ -1000,8 +1001,8 @@ export default function FrozenMeasure({
         </div>
       )}
 
-      {/* 탭·드래그 안내 힌트 */}
-      {isPlacing && draggingIdx === null && (
+      {/* 탭·드래그 안내 힌트 (측정값 나오면 숨김) */}
+      {isPlacing && draggingIdx === null && !hasResult && (
         <div className={`${styles.hint} ${styles.hintTap}`}>
           {points.length === 0
             ? '색깔 스티커를 붙였으면 스티커찾기를 누르세요'

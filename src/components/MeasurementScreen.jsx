@@ -478,6 +478,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
       ? validateHeight(value)
       : validateDiameter(mm, selectedType.id)
     setResult({ value, mm, validation, pixelPerMm: measurePixelPerMm, pxDist })
+    setRedTapeFound(null)  // 측정값 나오면 위쪽 안내 배지 숨김
     if ((selectedType.id === '근원직경' || selectedType.id === '가지직경') && pxDist > 0) {
       try {
         const latestCaliper = await findLatestCaliperDiameter(getResearchMeta().treeId)
@@ -1294,7 +1295,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
           </div>
         )}
 
-        {phase === PHASE.PLACING_POINTS && redTapeFound === true && (
+        {phase === PHASE.PLACING_POINTS && !result && redTapeFound === true && (
           <div style={{
             position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
             textAlign: 'center', pointerEvents: 'none',
@@ -1308,7 +1309,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             </span>
           </div>
         )}
-        {phase === PHASE.PLACING_POINTS && redTapeFound === false && (
+        {phase === PHASE.PLACING_POINTS && !result && redTapeFound === false && (
           <div style={{
             position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
             textAlign: 'center', pointerEvents: 'none',
@@ -1328,6 +1329,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             frozenSrc={frozenSrc} frozenW={frozenSize.w} frozenH={frozenSize.h}
             markerCorners={markerCorners} points={points}
             pixelPerMm={pixelPerMm} tapPhase={frozenTapPhase}
+            hasResult={!!result}
             onPointsChange={handlePointsChange} debugInfo={debugInfo}
           />
         )}
