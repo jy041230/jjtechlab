@@ -110,8 +110,10 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     if (!best) return null
 
     const c = best.c
-    const yLo = Math.round(c.minY + (c.maxY - c.minY) * 0.33)
-    const yHi = Math.round(c.minY + (c.maxY - c.minY) * 0.67)
+    // 캘리퍼스는 테이프 '위쪽 끝'(줄기가 시작되는 곳)을 재므로, 점도 윗부분에서 잡는다.
+    // 맨 끝(minY)은 모서리라 불안정 → 위에서 10~25% 내려온 띠에서 좌우 끝을 본다.
+    const yLo = Math.round(c.minY + (c.maxY - c.minY) * 0.10)
+    const yHi = Math.round(c.minY + (c.maxY - c.minY) * 0.25)
     let leftX = w, rightX = -1
     for (let y = yLo; y <= yHi; y++) {
       for (let x = c.minX; x <= c.maxX; x++) {
@@ -122,11 +124,12 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
       }
     }
     if (rightX < leftX) { leftX = c.minX; rightX = c.maxX }
-    const midY = (c.minY + c.maxY) / 2
+    // 점의 높이도 테이프 윗부분(위에서 17%)으로
+    const topY = Math.round(c.minY + (c.maxY - c.minY) * 0.17)
     if (rightX - leftX < 4) return null
 
     const toImg = (vx, vy) => ({ x: vx / scale, y: vy / scale })
-    return [toImg(leftX, midY), toImg(rightX, midY)]
+    return [toImg(leftX, topY), toImg(rightX, topY)]
   } catch (e) {
     console.warn('[파란 테이프 감지 실패]', e)
     return null
