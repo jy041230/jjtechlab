@@ -110,12 +110,12 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     if (!best) return null
 
     const c = best.c
-    // 캘리퍼스는 테이프 '위쪽 끝'(줄기가 시작되는 곳)을 재므로, 점도 윗부분에서 잡는다.
-    // 맨 끝(minY)은 모서리라 불안정 → 위에서 10~25% 내려온 띠에서 좌우 끝을 본다.
-    const yLo = Math.round(c.minY + (c.maxY - c.minY) * 0.10)
-    const yHi = Math.round(c.minY + (c.maxY - c.minY) * 0.25)
+    // 캘리퍼스는 테이프 '위쪽 끝'을 재므로, 점도 테이프 맨 위 근처에서 잡는다.
+    // 맨 끝 모서리는 불안정 → 위에서 5~12% 띠에서 좌우 끝을 본다.
+    const yLo = Math.round(c.minY + (c.maxY - c.minY) * 0.05)
+    const yHi = Math.round(c.minY + (c.maxY - c.minY) * 0.12)
     let leftX = w, rightX = -1
-    for (let y = yLo; y <= yHi; y++) {
+    for (let y = yLo; y <= Math.max(yHi, yLo); y++) {
       for (let x = c.minX; x <= c.maxX; x++) {
         if (mask[y * w + x] === 1 && label[y * w + x]) {
           if (x < leftX) leftX = x
@@ -124,8 +124,8 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
       }
     }
     if (rightX < leftX) { leftX = c.minX; rightX = c.maxX }
-    // 점의 높이도 테이프 윗부분(위에서 17%)으로
-    const topY = Math.round(c.minY + (c.maxY - c.minY) * 0.17)
+    // 점의 높이도 테이프 위쪽 끝(위에서 8%)으로
+    const topY = Math.round(c.minY + (c.maxY - c.minY) * 0.08)
     if (rightX - leftX < 4) return null
 
     const toImg = (vx, vy) => ({ x: vx / scale, y: vy / scale })
