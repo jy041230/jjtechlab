@@ -1327,34 +1327,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             </span>
           </div>
         )}
-        {phase === PHASE.PLACING_POINTS && !result && redTapeFound === true && (
-          <div style={{
-            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
-            textAlign: 'center', pointerEvents: 'none',
-          }}>
-            <span style={{
-              display: 'inline-block', padding: '6px 14px', borderRadius: 12,
-              background: 'rgba(30,80,160,0.92)', color: '#fff',
-              fontSize: 13, fontWeight: 800,
-            }}>
-              🔵 파란 테이프 자동 인식됨 — 위치를 확인하고 필요하면 끌어서 조정
-            </span>
-          </div>
-        )}
-        {phase === PHASE.PLACING_POINTS && !result && redTapeFound === false && (
-          <div style={{
-            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
-            textAlign: 'center', pointerEvents: 'none',
-          }}>
-            <span style={{
-              display: 'inline-block', padding: '6px 14px', borderRadius: 12,
-              background: 'rgba(180,120,30,0.9)', color: '#fff',
-              fontSize: 13, fontWeight: 800,
-            }}>
-              파란 테이프를 못 찾았습니다 — 직접 두 점을 찍어 주세요
-            </span>
-          </div>
-        )}
+        {/* 파란 테이프 자동 감지는 계속 동작하되, 화면을 가리는 안내 배지는 표시하지 않음 */}
 
         {[PHASE.NO_MARKER, PHASE.PLACING_POINTS].includes(phase) && (
           <FrozenMeasure
