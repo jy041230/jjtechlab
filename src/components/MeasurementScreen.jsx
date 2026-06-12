@@ -165,6 +165,9 @@ function isNearMarker(ix, iy, markerCorners, margin = 30) {
 export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnalysis, onGoSensor, onGoReport, onExitMode, onRegisterBack }) {
   const [phase, setPhase]               = useState(PHASE.IDLE)
   const [selectedType, setSelectedType] = useState(MEASUREMENT_TYPES[0])
+  const selectedTypeRef = useRef(selectedType)
+  useEffect(() => { selectedTypeRef.current = selectedType }, [selectedType])
+  const [redTapeFound, setRedTapeFound] = useState(null) // null=해당없음, true/false
 
   const [frozenSrc,     setFrozenSrc]     = useState(null)
   const [frozenSize,    setFrozenSize]    = useState({ w: 0, h: 0 })
@@ -387,14 +390,19 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
         scaleCorners:  detected.debug.scaleCorners,
       })
       // 가지직경·근원직경이면 빨간 테이프를 자동 감지해 두 점 제안 (사용자가 확인·조정)
-      if (selectedType.id === '가지직경' || selectedType.id === '근원직경') {
+      const curType = selectedTypeRef.current
+      if (curType.id === '가지직경' || curType.id === '근원직경') {
         try {
           const suggested = detectRedTape(canvas, videoW, videoH, detected.corners)
           if (suggested && suggested.length === 2) {
             setPoints(suggested)
+            setRedTapeFound(true)
+          } else {
+            setRedTapeFound(false)
           }
         } catch (e) {
           console.warn('[빨간 테이프 자동 제안 건너뜀]', e)
+          setRedTapeFound(false)
         }
       }
       setPhase(PHASE.PLACING_POINTS)
@@ -1283,6 +1291,35 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
           <div className={styles.processingOverlay}>
             <span className={styles.processingSpinner}>⏳</span>
             <p>{cvState === 'loading' ? '마커 모듈 준비 중…' : '마커 인식 중…'}</p>
+          </div>
+        )}
+
+        {phase === PHASE.PLACING_POINTS && redTapeFound === true && (
+          <div style={{
+            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
+            textAlign: 'center', pointerEvents: 'none',
+          }}>
+            <span style={{
+              display: 'inline-block', padding: '6px 14px', borderRadius: 12,
+              background: 'rgba(45,106,79,0.92)', color: '#fff',
+              fontSize: 13, fontWeight: 800,
+            }}>
+              🔴 빨간 테이프 자동 인식됨 — 위치를 확인하고 필요하면 끌어서 조정
+            </span>
+          </div>
+        )}
+        {phase === PHASE.PLACING_POINTS && redTapeFound === false && (
+          <div style={{
+            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
+            textAlign: 'center', pointerEvents: 'none',
+          }}>
+            <span style={{
+              display: 'inline-block', padding: '6px 14px', borderRadius: 12,
+              background: 'rgba(180,120,30,0.9)', color: '#fff',
+              fontSize: 13, fontWeight: 800,
+            }}>
+              빨간 테이프를 못 찾았습니다 — 직접 두 점을 찍어 주세요
+            </span>
           </div>
         )}
 
