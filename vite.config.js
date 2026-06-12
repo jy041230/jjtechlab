@@ -162,18 +162,19 @@ export default {
       registerType: 'autoUpdate',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
-        name: '홍매화 측정 앱',
-        short_name: '측정앱',
-        description: '조경수 줄기 직경 비접촉 계측 및 음성 외재화',
+        name: '조경수 생산이력관리',
+        short_name: '생산이력',
+        description: '스마트팜 기반 조경수 성장·생산 이력 관리 시스템',
         lang: 'ko',
         theme_color: '#2d6a4f',
-        background_color: '#f5f5f0',
+        background_color: '#2d6a4f',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {
