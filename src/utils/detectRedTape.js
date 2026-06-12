@@ -87,7 +87,7 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
       markerSide = Math.hypot(dx, dy)
     }
 
-    const minCount = Math.max(6, Math.round(w * h * 0.0008))
+    const minCount = Math.max(6, Math.round(w * h * 0.0004))
     let best = null, bestScore = -Infinity
     for (const c of comps) {
       if (c.count < minCount) continue
