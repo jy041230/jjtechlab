@@ -1615,6 +1615,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
                 <span className={styles.typeLabel}>{t.label}</span>
               </button>
             ))}
+            <button className={styles.typeBtn} onClick={onGoSensor}>
+              <span className={styles.typeIcon}>📡</span>
+              <span className={styles.typeLabel}>토양센서</span>
+            </button>
             <button className={styles.typeBtn} onClick={handleOpenJournal}>
               <span className={styles.typeIcon}>📝</span>
               <span className={styles.typeLabel}>작업일지</span>
@@ -1622,10 +1626,6 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             <button className={styles.typeBtn} onClick={handleOpenList}>
               <span className={styles.typeIcon}>📋</span>
               <span className={styles.typeLabel}>일일입력리스트</span>
-            </button>
-            <button className={styles.typeBtn} onClick={onGoSensor}>
-              <span className={styles.typeIcon}>📡</span>
-              <span className={styles.typeLabel}>토양센서</span>
             </button>
             <button className={styles.typeBtn} onClick={onGoResearch}>
               <span className={styles.typeIcon}>✅</span>
