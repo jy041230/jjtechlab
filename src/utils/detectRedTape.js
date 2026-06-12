@@ -14,12 +14,12 @@
  * "두 점을 제안"만 하고, 사용자가 드래그로 확인·조정한다.
  */
 
-/** 빨강 판정 (RGB → 대략적 HSV 빨강 영역) */
-function isRed(r, g, b) {
+/** 파랑 판정 (RGB → 대략적 HSV 파랑 영역) */
+function isBlue(r, g, b) {
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
   const v = max / 255
   const s = max === 0 ? 0 : (max - min) / max
-  if (v < 0.25 || s < 0.35) return false        // 너무 어둡거나 채도 낮으면 제외
+  if (v < 0.20 || s < 0.30) return false        // 너무 어둡거나 채도 낮으면 제외
   // 색상(Hue) 계산
   let h = 0
   const d = max - min
@@ -30,8 +30,8 @@ function isRed(r, g, b) {
     h *= 60
     if (h < 0) h += 360
   }
-  // 빨강: 0±25도 또는 335~360도
-  return h <= 25 || h >= 335
+  // 파랑: 195~255도 (하늘색~남색 포함)
+  return h >= 195 && h <= 255
 }
 
 /**
@@ -59,7 +59,7 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const i = (y * w + x) * 4
-        if (isRed(data[i], data[i+1], data[i+2])) {
+        if (isBlue(data[i], data[i+1], data[i+2])) {
           rowCount[y]++
           if (x < rowMinX[y]) rowMinX[y] = x
           if (x > rowMaxX[y]) rowMaxX[y] = x
@@ -68,8 +68,8 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     }
 
     // 빨강 픽셀이 너무 적으면 실패
-    const totalRed = rowCount.reduce((a, b) => a + b, 0)
-    if (totalRed < w * h * 0.003) return null   // 전체의 0.3% 미만이면 빨강 없음으로 판단
+    const totalBlue = rowCount.reduce((a, b) => a + b, 0)
+    if (totalBlue < w * h * 0.003) return null   // 전체의 0.3% 미만이면 빨강 없음으로 판단
 
     // 3) 빨강이 가장 많은 행을 중심으로, 연속된 빨강 띠 구간 찾기
     let peakRow = 0, peakVal = 0
@@ -106,7 +106,7 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     const toImg = (vx, vy) => ({ x: vx / scale, y: vy / scale })
     return [toImg(leftX, midY), toImg(rightX, midY)]
   } catch (e) {
-    console.warn('[빨간 테이프 감지 실패]', e)
+    console.warn('[파란 테이프 감지 실패]', e)
     return null
   }
 }
