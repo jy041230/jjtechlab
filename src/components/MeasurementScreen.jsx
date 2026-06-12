@@ -169,6 +169,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
   useEffect(() => { selectedTypeRef.current = selectedType }, [selectedType])
   const [redTapeFound, setRedTapeFound] = useState(null) // null=해당없음, true/false
   const [markerSkewed, setMarkerSkewed] = useState(false) // 마커가 기울어졌는지
+  const redTapeTimerRef = useRef(null)
 
   const [frozenSrc,     setFrozenSrc]     = useState(null)
   const [frozenSize,    setFrozenSize]    = useState({ w: 0, h: 0 })
@@ -418,6 +419,9 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
           } else {
             setRedTapeFound(false)
           }
+          // 2.5초 뒤 안내 자동으로 사라짐 (화면 가림 방지)
+          if (redTapeTimerRef.current) clearTimeout(redTapeTimerRef.current)
+          redTapeTimerRef.current = setTimeout(() => setRedTapeFound(null), 2500)
         } catch (e) {
           console.warn('[파란 테이프 자동 제안 건너뜀]', e)
           setRedTapeFound(false)
@@ -1327,7 +1331,35 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             </span>
           </div>
         )}
-        {/* 파란 테이프 자동 감지는 계속 동작하되, 화면을 가리는 안내 배지는 표시하지 않음 */}
+        {/* 파란 테이프 자동 감지 결과 — 2.5초만 짧게 표시 (화면 가림 최소화) */}
+        {phase === PHASE.PLACING_POINTS && !result && redTapeFound === true && (
+          <div style={{
+            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
+            textAlign: 'center', pointerEvents: 'none',
+          }}>
+            <span style={{
+              display: 'inline-block', padding: '5px 12px', borderRadius: 12,
+              background: 'rgba(30,80,160,0.85)', color: '#fff',
+              fontSize: 12, fontWeight: 800,
+            }}>
+              🔵 자동 인식됨 — 위치 확인 후 조정
+            </span>
+          </div>
+        )}
+        {phase === PHASE.PLACING_POINTS && !result && redTapeFound === false && (
+          <div style={{
+            position: 'absolute', top: 10, left: 0, right: 0, zIndex: 20,
+            textAlign: 'center', pointerEvents: 'none',
+          }}>
+            <span style={{
+              display: 'inline-block', padding: '5px 12px', borderRadius: 12,
+              background: 'rgba(180,120,30,0.85)', color: '#fff',
+              fontSize: 12, fontWeight: 800,
+            }}>
+              자동 인식 실패 — 직접 두 점을 찍어 주세요
+            </span>
+          </div>
+        )}
 
         {[PHASE.NO_MARKER, PHASE.PLACING_POINTS].includes(phase) && (
           <FrozenMeasure
