@@ -382,11 +382,22 @@
   flex-wrap: wrap;
 }
 
+/* 기간 행은 한 줄 고정 (줄바꿈 금지, 날짜칸 압축) */
+.ctrlRowDate {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
 .ctrlLabel {
   font-size: 13px;
   font-weight: 800;
   color: #1b4332;
   min-width: 56px;
+}
+
+.ctrlRowDate .ctrlLabel {
+  min-width: auto;
+  flex-shrink: 0;
 }
 
 .ctrlSelect {
@@ -402,29 +413,34 @@
 }
 
 .ctrlDate {
+  flex: 1;
+  min-width: 0;
+  width: 0;
   min-height: 40px;
-  padding: 0 8px;
+  padding: 0 4px;
   border: 1px solid #cfe0d4;
   border-radius: 10px;
   background: #fff;
-  font-size: 14px;
+  font-size: 13px;
   color: #1b4332;
 }
 
 .ctrlTilde {
   font-weight: 800;
   color: #43624f;
+  flex-shrink: 0;
 }
 
 .ctrlReset {
   min-height: 40px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid #cfe0d4;
   border-radius: 10px;
   background: #2d6a4f;
   color: #fff;
   font-size: 13px;
   font-weight: 800;
+  flex-shrink: 0;
 }
 
 /* ── 줄기 펼침 ── */

@@ -118,7 +118,7 @@ export default function TreeReport({ onBack, initialTreeId = null }) {
                 ))}
               </select>
             </div>
-            <div className={styles.ctrlRow}>
+            <div className={`${styles.ctrlRow} ${styles.ctrlRowDate}`}>
               <label className={styles.ctrlLabel}>기간</label>
               <input type="date" className={styles.ctrlDate} value={fromDate} onChange={e => setFromDate(e.target.value)} />
               <span className={styles.ctrlTilde}>~</span>
