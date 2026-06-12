@@ -19,7 +19,7 @@ function isBlue(r, g, b) {
   const max = Math.max(r, g, b), min = Math.min(r, g, b)
   const v = max / 255
   const s = max === 0 ? 0 : (max - min) / max
-  if (v < 0.20 || s < 0.30) return false        // 너무 어둡거나 채도 낮으면 제외
+  if (v < 0.15 || s < 0.20) return false        // 너무 어둡거나 채도 낮으면 제외
   // 색상(Hue) 계산
   let h = 0
   const d = max - min
@@ -30,8 +30,8 @@ function isBlue(r, g, b) {
     h *= 60
     if (h < 0) h += 360
   }
-  // 파랑: 195~255도 (하늘색~남색 포함)
-  return h >= 195 && h <= 255
+  // 파랑: 190~260도 (하늘색~남색, 약간의 청록 포함)
+  return h >= 190 && h <= 260
 }
 
 /**
@@ -67,16 +67,16 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
       }
     }
 
-    // 빨강 픽셀이 너무 적으면 실패
+    // 파랑 픽셀이 너무 적으면 실패 (테이프가 멀어 작게 보여도 잡히게 완화)
     const totalBlue = rowCount.reduce((a, b) => a + b, 0)
-    if (totalBlue < w * h * 0.003) return null   // 전체의 0.3% 미만이면 빨강 없음으로 판단
+    if (totalBlue < w * h * 0.0005) return null   // 전체의 0.05% 미만이면 파랑 없음으로 판단
 
     // 3) 빨강이 가장 많은 행을 중심으로, 연속된 빨강 띠 구간 찾기
     let peakRow = 0, peakVal = 0
     for (let y = 0; y < h; y++) {
       if (rowCount[y] > peakVal) { peakVal = rowCount[y]; peakRow = y }
     }
-    if (peakVal < Math.max(4, w * 0.04)) return null
+    if (peakVal < Math.max(3, w * 0.015)) return null
 
     // peak 주변에서 빨강이 peak의 30% 이상인 행들을 띠로 모음
     const thr = peakVal * 0.3
@@ -100,7 +100,7 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     const midY = (top + bot) / 2
 
     // 폭이 비정상(너무 좁음)이면 실패
-    if (rightX - leftX < Math.max(6, w * 0.03)) return null
+    if (rightX - leftX < Math.max(4, w * 0.015)) return null
 
     // 5) 원본 좌표로 환산
     const toImg = (vx, vy) => ({ x: vx / scale, y: vy / scale })
