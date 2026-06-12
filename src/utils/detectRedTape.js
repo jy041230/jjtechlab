@@ -110,22 +110,27 @@ export function detectRedTape(imgEl, imgW, imgH, markerCorners = null) {
     if (!best) return null
 
     const c = best.c
-    // 캘리퍼스는 테이프 '위쪽 끝'을 재므로, 점도 테이프 맨 위 근처에서 잡는다.
-    // 맨 끝 모서리는 불안정 → 위에서 5~12% 띠에서 좌우 끝을 본다.
-    const yLo = Math.round(c.minY + (c.maxY - c.minY) * 0.05)
-    const yHi = Math.round(c.minY + (c.maxY - c.minY) * 0.12)
-    let leftX = w, rightX = -1
-    for (let y = yLo; y <= Math.max(yHi, yLo); y++) {
+    // 점 높이: 테이프 위쪽 끝 근처 (캘리퍼스가 재는 위치)
+    const topY = Math.round(c.minY + (c.maxY - c.minY) * 0.10)
+    // 좌우 폭: 위쪽 좁은 띠만 보면 가장자리를 놓쳐 안쪽으로 들어감.
+    // → 테이프 위쪽 절반(0~50%) 구간에서 '가장 넓은 행'의 좌우 끝을 쓴다.
+    const yScanLo = c.minY
+    const yScanHi = Math.round(c.minY + (c.maxY - c.minY) * 0.50)
+    let leftX = w, rightX = -1, bestRowWidth = -1
+    for (let y = yScanLo; y <= yScanHi; y++) {
+      let rl = w, rr = -1
       for (let x = c.minX; x <= c.maxX; x++) {
         if (mask[y * w + x] === 1 && label[y * w + x]) {
-          if (x < leftX) leftX = x
-          if (x > rightX) rightX = x
+          if (x < rl) rl = x
+          if (x > rr) rr = x
         }
+      }
+      if (rr >= rl && (rr - rl) > bestRowWidth) {
+        bestRowWidth = rr - rl
+        leftX = rl; rightX = rr
       }
     }
     if (rightX < leftX) { leftX = c.minX; rightX = c.maxX }
-    // 점의 높이도 테이프 위쪽 끝(위에서 8%)으로
-    const topY = Math.round(c.minY + (c.maxY - c.minY) * 0.08)
     if (rightX - leftX < 4) return null
 
     const toImg = (vx, vy) => ({ x: vx / scale, y: vy / scale })
