@@ -13,6 +13,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useCamera }        from '../hooks/useCamera'
 import { useVoice }         from '../hooks/useVoice'
 import { detectAruco, preloadOpenCV, avgSidePx } from '../utils/aruco'
+import { detectRedTape } from '../utils/detectRedTape'
 import { correctPH }        from '../utils/voiceParser'
 import {
   saveDiameterMeasurement,
@@ -385,6 +386,17 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
         rawCorners:    detected.debug.rawCorners,
         scaleCorners:  detected.debug.scaleCorners,
       })
+      // 가지직경·근원직경이면 빨간 테이프를 자동 감지해 두 점 제안 (사용자가 확인·조정)
+      if (selectedType.id === '가지직경' || selectedType.id === '근원직경') {
+        try {
+          const suggested = detectRedTape(canvas, videoW, videoH, detected.corners)
+          if (suggested && suggested.length === 2) {
+            setPoints(suggested)
+          }
+        } catch (e) {
+          console.warn('[빨간 테이프 자동 제안 건너뜀]', e)
+        }
+      }
       setPhase(PHASE.PLACING_POINTS)
     } catch (err) {
       console.error('[capture]', err)
