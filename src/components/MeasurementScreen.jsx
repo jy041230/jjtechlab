@@ -389,7 +389,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
         rawCorners:    detected.debug.rawCorners,
         scaleCorners:  detected.debug.scaleCorners,
       })
-      // 가지직경·근원직경이면 빨간 테이프를 자동 감지해 두 점 제안 (사용자가 확인·조정)
+      // 가지직경·근원직경이면 파란 테이프를 자동 감지해 두 점 제안 (사용자가 확인·조정)
       const curType = selectedTypeRef.current
       if (curType.id === '가지직경' || curType.id === '근원직경') {
         try {
@@ -401,7 +401,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
             setRedTapeFound(false)
           }
         } catch (e) {
-          console.warn('[빨간 테이프 자동 제안 건너뜀]', e)
+          console.warn('[파란 테이프 자동 제안 건너뜀]', e)
           setRedTapeFound(false)
         }
       }
@@ -1301,10 +1301,10 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
           }}>
             <span style={{
               display: 'inline-block', padding: '6px 14px', borderRadius: 12,
-              background: 'rgba(45,106,79,0.92)', color: '#fff',
+              background: 'rgba(30,80,160,0.92)', color: '#fff',
               fontSize: 13, fontWeight: 800,
             }}>
-              🔴 빨간 테이프 자동 인식됨 — 위치를 확인하고 필요하면 끌어서 조정
+              🔵 파란 테이프 자동 인식됨 — 위치를 확인하고 필요하면 끌어서 조정
             </span>
           </div>
         )}
@@ -1318,7 +1318,7 @@ export default function MeasurementScreen({ onGoHistory, onGoResearch, onGoAnaly
               background: 'rgba(180,120,30,0.9)', color: '#fff',
               fontSize: 13, fontWeight: 800,
             }}>
-              빨간 테이프를 못 찾았습니다 — 직접 두 점을 찍어 주세요
+              파란 테이프를 못 찾았습니다 — 직접 두 점을 찍어 주세요
             </span>
           </div>
         )}
